@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  pretalx:
+    build: .
+    container_name: pretalx-oidc
+    ports:
+      - "8355:8000"
+    volumes:
+      - ./pretalx.cfg:/etc/pretalx/pretalx.cfg:ro
+      - ./data:/data
+      - ./media:/public/media
+      - ./static:/public/static
+    depends_on:
+      - redis
+    networks:
+      - pretalx-network
+    command: >
+      sh -c "
+      python manage.py migrate &&
+      python manage.py rebuild &&
+      python manage.py runserver 0.0.0.0:8000
+      "
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: pretalx-redis
+    networks:
+      - pretalx-network
+    restart: unless-stopped
+
+networks:
+  pretalx-network:
+    driver: bridge

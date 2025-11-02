@@ -1,0 +1,108 @@
+# Pretalx Configuration Example
+# Copy this file to pretalx.cfg and edit with your settings
+
+[site]
+# Your public URL (must match your actual domain)
+url = http://localhost:8355
+media_url = http://localhost:8355/media/
+static_url = http://localhost:8355/static/
+
+# For production HTTPS deployments, uncomment these:
+# url = https://pretalx.yourdomain.com
+# media_url = https://pretalx.yourdomain.com/media/
+# static_url = https://pretalx.yourdomain.com/static/
+# trust_x_forwarded_proto = true
+# trust_x_forwarded_for = true
+
+# Enable debug mode (disable in production!)
+debug = true
+
+[database]
+# SQLite for development
+backend = sqlite3
+name = db.sqlite3
+
+# For production, consider PostgreSQL:
+# backend = postgresql
+# name = pretalx
+# user = pretalx
+# password = your-db-password
+# host = db
+# port = 5432
+
+[authentication]
+# OIDC authentication backend
+additional_auth_backends = pretalx_oidc.auth.PretalxOIDCBackend
+
+[oidc]
+# Hide password login/register forms (show only OIDC button)
+# Set to true for OIDC-only authentication
+hide_password_form = true
+
+# OIDC Provider Configuration
+# ===========================
+
+# Auto-discovery endpoint (recommended)
+# This should point to your OIDC provider's base URL
+# The plugin will automatically fetch /.well-known/openid-configuration
+op_discovery_endpoint = https://your-oidc-provider.com/realms/your-realm
+
+# Examples for common providers:
+# Keycloak: https://keycloak.example.com/realms/demo
+# Auth0: https://your-domain.auth0.com
+# Azure AD: https://login.microsoftonline.com/{tenant-id}/v2.0
+# Okta: https://your-domain.okta.com/oauth2/default
+# Google: https://accounts.google.com
+
+# OIDC Client Credentials
+# =======================
+rp_client_id = your-client-id
+rp_client_secret = your-client-secret
+
+# Provider display name (shown on login button)
+provider_name = My OIDC Provider
+
+# Admin Users Configuration
+# =========================
+# Comma-separated list of OIDC user identifiers (sub claim) or emails
+# Users matching these will be granted superuser/staff privileges
+# 
+# You can use:
+# - OIDC 'sub' claim (recommended, unique identifier)
+# - Email addresses
+# - Mix of both
+#
+# To find a user's 'sub' claim, check logs after their first login:
+# docker-compose logs | grep "sub="
+#
+# Examples:
+# admin_users = c946913e-bbda-41a1-bbc4-63e61ab81b3c
+# admin_users = admin@example.com, manager@example.com
+# admin_users = c946913e-bbda-41a1-bbc4-63e61ab81b3c, admin@example.com
+
+admin_users = 
+
+# Advanced OIDC Settings (optional)
+# =================================
+# If auto-discovery is not available, manually configure endpoints:
+# op_authorization_endpoint = https://provider.com/auth
+# op_token_endpoint = https://provider.com/token
+# op_user_endpoint = https://provider.com/userinfo
+# op_jwks_endpoint = https://provider.com/certs
+
+# Additional scopes to request (default: openid email profile)
+# scopes = openid email profile groups
+
+# [mail]
+# Configure email settings for notifications
+# from = noreply@yourdomain.com
+# host = smtp.example.com
+# port = 587
+# user = smtp-user
+# password = smtp-password
+# tls = true
+
+# [locale]
+# Default timezone and language
+# time_zone = UTC
+# language_code = en

@@ -1,0 +1,49 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in image)
+*.md
+!src/pretalx-oidc/README.md
+
+# Test files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local data and config (will be mounted as volumes)
+data/
+*.sqlite3
+db.sqlite3
+pretalx.cfg
+*.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
