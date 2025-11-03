@@ -3,6 +3,7 @@
 
 import logging
 
+from django.conf import settings
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.safestring import mark_safe
@@ -26,10 +27,14 @@ def add_oidc_login_button(sender, request, next_url=None, **kwargs):
         if next_url:
             login_url = f"{login_url}?next={next_url}"
 
+        # Get provider name from settings, fallback to "OIDC" if not set
+        provider_name = getattr(settings, 'OIDC_PROVIDER_NAME', 'OIDC')
+        button_text = _("Sign in with {provider}").format(provider=provider_name)
+
         button_html = f"""
     <div class="auth-form-block w-100">
         <a class="btn btn-lg btn-primary btn-block" href="{login_url}">
-            <i class="fa fa-sign-in"></i> {_("Sign in with OIDC")}
+            <i class="fa fa-sign-in"></i> {button_text}
         </a>
     </div>
     """

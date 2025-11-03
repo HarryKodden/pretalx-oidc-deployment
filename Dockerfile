@@ -54,7 +54,7 @@ COPY patch_ssl_proxy.py /tmp/patch_ssl_proxy.py
 RUN python3 /tmp/patch_ssl_proxy.py && rm /tmp/patch_ssl_proxy.py
 
 # Copy and install OIDC plugin
-COPY pretalx-oidc /pretalx-oidc
+COPY pretalx-oidc-plugin /pretalx-oidc
 RUN cd /pretalx-oidc && pip install -e .
 
 WORKDIR /pretalx/src
