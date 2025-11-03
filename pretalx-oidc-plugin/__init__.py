@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025-present Your Name
+# SPDX-FileCopyrightText: 2025-present Harry Kodden
 # SPDX-License-Identifier: Apache-2.0
 
 # Manual signal registration version - with auto-discovery support
@@ -17,7 +17,7 @@ class PretalxOIDCPlugin(AppConfig):
 
     class PretalxPluginMeta:
         name = "Pretalx OIDC"
-        author = "Your Name"
+        author = "Harry Kodden"
         description = "OIDC authentication plugin for Pretalx"
         visible = True
         version = "1.0.0"

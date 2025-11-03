@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025-present Your Name
+# SPDX-FileCopyrightText: 2025-present Harry Kodden
 # SPDX-License-Identifier: Apache-2.0
 
 from django.apps import AppConfig
@@ -13,7 +13,7 @@ class PretalxOIDCPlugin(AppConfig):
 
     class PretalxPluginMeta:
         name = _("OIDC Authentication")
-        author = "Your Name"
+        author = "Harry Kodden"
         description = _("Provides OpenID Connect authentication for pretalx")
         visible = True
         version = "1.0.0"

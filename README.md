@@ -194,6 +194,12 @@ This deployment includes:
 - Ensure `url` in `[site]` matches your actual domain
 - For HTTPS, set `trust_x_forwarded_proto = true`
 
+### SSL proxy not recognized (HTTPS links show as HTTP)
+
+- Ensure your reverse proxy sets `X-Forwarded-Proto: https` header
+- The application automatically configures Django to trust proxy SSL headers
+- If issues persist, verify proxy configuration passes the correct headers
+
 ### User not created
 
 - Check OIDC provider returns `email` claim

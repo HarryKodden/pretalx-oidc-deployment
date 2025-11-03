@@ -49,8 +49,12 @@ RUN python3 /tmp/patch_hide_password_profile.py && rm /tmp/patch_hide_password_p
 COPY patch_hide_password_orga.py /tmp/patch_hide_password_orga.py
 RUN python3 /tmp/patch_hide_password_orga.py && rm /tmp/patch_hide_password_orga.py
 
+# Patch settings.py to add SSL proxy awareness for reverse proxy deployments
+COPY patch_ssl_proxy.py /tmp/patch_ssl_proxy.py
+RUN python3 /tmp/patch_ssl_proxy.py && rm /tmp/patch_ssl_proxy.py
+
 # Copy and install OIDC plugin
-COPY src/pretalx-oidc /pretalx-oidc
+COPY pretalx-oidc /pretalx-oidc
 RUN cd /pretalx-oidc && pip install -e .
 
 WORKDIR /pretalx/src

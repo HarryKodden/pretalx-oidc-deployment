@@ -7,8 +7,8 @@ setup(
     description="OIDC authentication plugin for pretalx",
     long_description="Provides OpenID Connect (OIDC) authentication for pretalx",
     url="https://github.com/yourusername/pretalx-oidc",
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Harry Kodden",
+    author_email="harry@kodden.nl",
     license="Apache",
     install_requires=[
         "mozilla-django-oidc>=3.0.0",
