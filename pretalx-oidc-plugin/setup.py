@@ -6,7 +6,7 @@ setup(
     version="1.0.0",
     description="OIDC authentication plugin for pretalx",
     long_description="Provides OpenID Connect (OIDC) authentication for pretalx",
-    url="https://github.com/yourusername/pretalx-oidc",
+    url="https://github.com/HarryKodden/pretalx-oidc-deployment.git",
     author="Harry Kodden",
     author_email="harry@kodden.nl",
     license="Apache",
