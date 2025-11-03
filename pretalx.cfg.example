@@ -82,6 +82,19 @@ provider_name = My OIDC Provider
 
 admin_users = 
 
+# Superuser Configuration
+# =======================
+# Comma-separated list of OIDC user identifiers (sub claim) or emails
+# Users matching these will be granted FULL superuser privileges (is_superuser=True)
+# Superusers have complete admin access, including Django admin and system management
+# 
+# Examples:
+# superuser = c946913e-bbda-41a1-bbc4-63e61ab81b3c
+# superuser = superadmin@example.com, system@example.com
+# superuser = c946913e-bbda-41a1-bbc4-63e61ab81b3c, superadmin@example.com
+
+superuser = 
+
 # Advanced OIDC Settings (optional)
 # =================================
 # If auto-discovery is not available, manually configure endpoints:

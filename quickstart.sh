@@ -29,11 +29,11 @@ echo ""
 
 # Build the Docker image
 echo "📦 Building Docker image..."
-docker-compose build
+docker compose build
 
 echo ""
 echo "🚀 Starting services..."
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo "⏳ Waiting for services to be ready..."
@@ -48,10 +48,10 @@ echo "Access pretalx at: http://localhost:8355"
 echo "(or the URL configured in pretalx.cfg)"
 echo ""
 echo "View logs:"
-echo "  docker-compose logs -f"
+echo "  docker compose logs -f"
 echo ""
 echo "Stop services:"
-echo "  docker-compose down"
+echo "  docker compose down"
 echo ""
 echo "Note: The first login will create your user account."
 echo "If you configured admin_users, you'll get admin privileges."

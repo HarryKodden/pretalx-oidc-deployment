@@ -2,8 +2,6 @@ services:
   pretalx:
     build: .
     container_name: pretalx-oidc
-    ports:
-      - "8355:8000"
     volumes:
       - ./pretalx.cfg:/etc/pretalx/pretalx.cfg:ro
       - ./data:/data
@@ -27,6 +25,29 @@ services:
     networks:
       - pretalx-network
     restart: unless-stopped
+
+  caddy:
+    image: "caddy:alpine"
+    restart: unless-stopped
+    ports:
+      - 443:443
+      - 80:80
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      pretalx-network:
+        aliases:
+          - pretalx.${DOMAIN}
+    environment:
+      DOMAIN: ${DOMAIN}
+
+volumes:
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
 
 networks:
   pretalx-network:

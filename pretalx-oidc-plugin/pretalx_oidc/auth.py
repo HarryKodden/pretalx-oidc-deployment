@@ -29,7 +29,7 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
         # Get admin users from config (comma-separated list)
         admin_users_str = config.get('oidc', 'admin_users', fallback='')
         if not admin_users_str:
-            return False
+            return False, False  # is_admin, is_superuser
         
         # Parse comma-separated list and strip whitespace
         admin_identifiers = [x.strip() for x in admin_users_str.split(',') if x.strip()]
@@ -43,7 +43,42 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
         if is_admin:
             logger.warning(f"[OIDC Auth] User matches admin identifier: sub={oidc_sub}, email={email}")
         
-        return is_admin
+        return is_admin, False  # Regular admin, not superuser
+
+    def _is_superuser(self, claims):
+        """Check if user should have superuser privileges based on claims."""
+        from pretalx.common.settings.config import build_config
+        config, _ = build_config()
+        
+        # Get superuser users from config (comma-separated list)
+        superuser_str = config.get('oidc', 'superuser', fallback='')
+        if not superuser_str:
+            return False
+        
+        # Parse comma-separated list and strip whitespace
+        superuser_identifiers = [x.strip() for x in superuser_str.split(',') if x.strip()]
+        
+        # Check if user's sub or email matches any superuser identifier
+        oidc_sub = claims.get('sub', '')
+        email = claims.get('email', '')
+        
+        is_superuser = oidc_sub in superuser_identifiers or email in superuser_identifiers
+        
+        if is_superuser:
+            logger.warning(f"[OIDC Auth] User matches superuser identifier: sub={oidc_sub}, email={email}")
+        
+        return is_superuser
+
+    def _get_user_privileges(self, claims):
+        """Determine user privileges from OIDC claims."""
+        is_admin, _ = self._is_admin_user(claims)  # Regular admin check
+        is_superuser = self._is_superuser(claims)  # Superuser check
+        
+        # Superusers are also admins (staff)
+        if is_superuser:
+            is_admin = True
+        
+        return is_admin, is_superuser
 
     def create_user(self, claims):
         """Create a new user from OIDC claims."""
@@ -54,8 +89,8 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             logger.error("[OIDC Auth] No email in claims, cannot create user")
             return None
 
-        # Check if user should be admin
-        is_admin = self._is_admin_user(claims)
+        # Check user privileges
+        is_admin, is_superuser = self._get_user_privileges(claims)
 
         # Create user with random password (OIDC-only authentication)
         user = User.objects.create_user(
@@ -63,14 +98,15 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             name=claims.get("name", "") or claims.get("preferred_username", ""),
         )
         
-        # Set admin privileges if configured
-        if is_admin:
+        # Set privileges if configured
+        if is_admin or is_superuser:
             user.is_staff = True
-            user.is_superuser = True
+            user.is_superuser = is_superuser
             user.save(update_fields=["is_staff", "is_superuser"])
-            logger.warning(f"[OIDC Auth] Granted admin privileges to user: {user.email}")
+            privilege_type = "superuser" if is_superuser else "admin"
+            logger.warning(f"[OIDC Auth] Granted {privilege_type} privileges to user: {user.email}")
         
-        logger.warning(f"[OIDC Auth] Created user: {user.email} (id={user.pk}, admin={is_admin})")
+        logger.warning(f"[OIDC Auth] Created user: {user.email} (id={user.pk}, admin={is_admin}, superuser={is_superuser})")
 
         # Store OIDC ID
         oidc_profile = OIDCUserProfile.objects.create(
@@ -94,19 +130,23 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             user.name = name
             user.save(update_fields=["name"])
 
-        # Check and update admin status
-        is_admin = self._is_admin_user(claims)
-        if is_admin and not (user.is_staff and user.is_superuser):
-            user.is_staff = True
-            user.is_superuser = True
+        # Check and update privileges
+        is_admin, is_superuser = self._get_user_privileges(claims)
+        current_admin = user.is_staff
+        current_superuser = user.is_superuser
+        
+        # Update privileges if they've changed
+        if (is_admin != current_admin) or (is_superuser != current_superuser):
+            user.is_staff = is_admin or is_superuser  # Staff = admin or superuser
+            user.is_superuser = is_superuser
             user.save(update_fields=["is_staff", "is_superuser"])
-            logger.warning(f"[OIDC Auth] Granted admin privileges to existing user: {user.email}")
-        elif not is_admin and (user.is_staff or user.is_superuser):
-            # Optionally revoke admin if no longer in admin list
-            user.is_staff = False
-            user.is_superuser = False
-            user.save(update_fields=["is_staff", "is_superuser"])
-            logger.warning(f"[OIDC Auth] Revoked admin privileges from user: {user.email}")
+            
+            if is_superuser:
+                logger.warning(f"[OIDC Auth] Granted superuser privileges to existing user: {user.email}")
+            elif is_admin:
+                logger.warning(f"[OIDC Auth] Granted admin privileges to existing user: {user.email}")
+            else:
+                logger.warning(f"[OIDC Auth] Revoked admin/superuser privileges from user: {user.email}")
 
         return user
 

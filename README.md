@@ -111,8 +111,11 @@ admin_users = user-sub-claim-id, admin@example.com
 3. Create a client secret
 4. Discovery URL: `https://login.microsoftonline.com/{tenant-id}/v2.0`
 
-### Admin Users
+### Admin Users & Superusers
 
+You can configure two levels of administrative access:
+
+#### Admin Users (Staff Access)
 To grant admin privileges, add OIDC user identifiers to `admin_users`:
 
 ```ini
@@ -126,6 +129,23 @@ admin_users = admin@example.com, manager@example.com
 # Or mix both
 admin_users = c946913e-bbda-41a1-bbc4-63e61ab81b3c, admin@example.com
 ```
+
+#### Superusers (Full System Access)
+To grant full superuser privileges, add OIDC user identifiers to `superuser`:
+
+```ini
+[oidc]
+# Superusers have complete admin access including Django admin
+superuser = superadmin@example.com
+
+# Or use sub claims
+superuser = c946913e-bbda-41a1-bbc4-63e61ab81b3c
+
+# Or mix both
+superuser = c946913e-bbda-41a1-bbc4-63e61ab81b3c, superadmin@example.com
+```
+
+**Note**: Superusers automatically get admin privileges as well. You only need to specify users in one list.
 
 To find a user's `sub` claim, check the OIDC token or logs after first login.
 
