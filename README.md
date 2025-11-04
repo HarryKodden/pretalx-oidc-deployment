@@ -85,6 +85,42 @@ hide_password_form = true
 admin_users = user-sub-claim-id, admin@example.com
 ```
 
+### Email Configuration
+
+The deployment includes MailHog for development/testing email functionality:
+
+```ini
+[mail]
+# Development setup with MailHog (included)
+from = noreply@your-domain.com
+host = mailhog
+port = 1025
+user = 
+password = 
+tls = false
+ssl = false
+```
+
+**Access the mail frontend**: `https://mail.your-domain.com`
+
+#### Development vs Production Email Behavior
+
+- **Development Mode** (`DEBUG=true`): pretalx uses console email backend by default, printing emails to logs instead of sending them. MailHog is available for manual SMTP testing.
+- **Production Mode** (`DEBUG=false`): pretalx automatically uses the SMTP settings from the `[mail]` section.
+
+For production, configure with your SMTP provider (Gmail, SendGrid, AWS SES, etc.):
+
+```ini
+[mail]
+# Production SMTP example (Gmail)
+from = noreply@your-domain.com
+host = smtp.gmail.com
+port = 587
+user = your-email@gmail.com
+password = your-app-password
+tls = true
+```
+
 ### OIDC Provider Setup
 
 #### Keycloak Example
@@ -148,6 +184,51 @@ superuser = c946913e-bbda-41a1-bbc4-63e61ab81b3c, superadmin@example.com
 **Note**: Superusers automatically get admin privileges as well. You only need to specify users in one list.
 
 To find a user's `sub` claim, check the OIDC token or logs after first login.
+
+### Automatic Privilege Synchronization
+
+User privileges are **automatically synchronized** with the current configuration every time they log in via OIDC. This means:
+
+✅ **No manual sync required** - privileges update on every authentication  
+✅ **Always current** - users immediately get/lose access when config changes  
+✅ **Safe configuration changes** - edit `admin_users`/`superuser` and changes take effect on next login  
+✅ **Complete sync** - both Django permissions and team memberships are updated  
+
+#### How It Works
+
+1. **On every OIDC login**: The system reads current `admin_users` and `superuser` from `pretalx.cfg`
+2. **Privilege reset**: User's current privileges are completely reset based on config
+3. **Team membership**: Admin teams are automatically managed (add/remove as needed)
+4. **Immediate effect**: Changes take effect immediately without waiting or manual intervention
+
+#### Example Workflow
+
+1. **Add a new admin**: Edit `pretalx.cfg` and add user to `admin_users`
+   ```ini
+   [oidc]
+   admin_users = existing@example.com, newadmin@example.com
+   ```
+
+2. **User gets privileges**: Next time `newadmin@example.com` logs in, they automatically get admin access
+
+3. **Remove admin**: Remove user from `admin_users` in config
+
+4. **Privileges revoked**: Next time that user logs in, admin access is automatically removed
+
+#### Manual Testing (Optional)
+
+If you want to see what privileges a user currently has:
+
+```bash
+# Check user privileges in Django shell
+docker compose exec pretalx python manage.py shell
+>>> from pretalx.person.models import User
+>>> user = User.objects.get(email="user@example.com")
+>>> print(f"Staff: {user.is_staff}, Superuser: {user.is_superuser}")
+>>> from pretalx.event.models import Team
+>>> admin_teams = Team.objects.filter(members=user, can_create_events=True)
+>>> print(f"Admin teams: {admin_teams.count()}")
+```
 
 ## Docker Deployment
 
@@ -231,6 +312,69 @@ This deployment includes:
 Check Docker logs after login:
 ```bash
 docker-compose logs | grep "sub="
+```
+
+## Quick Reference
+
+### Common Tasks
+
+### Common Tasks
+
+**Add admin user:**
+1. Edit `pretalx.cfg`: Add email to `admin_users`
+2. User gets admin access on next OIDC login (automatic)
+
+**Remove admin user:**
+1. Edit `pretalx.cfg`: Remove email from `admin_users`  
+2. User loses admin access on next OIDC login (automatic)
+
+**Promote to superuser:**
+1. Edit `pretalx.cfg`: Move email from `admin_users` to `superuser`
+2. User gets superuser access on next OIDC login (automatic)
+
+**Check user privileges:**
+```bash
+# Check specific user in Django shell
+docker compose exec pretalx python manage.py shell
+>>> from pretalx.person.models import User
+>>> user = User.objects.get(email="user@example.com")
+>>> print(f"Staff: {user.is_staff}, Superuser: {user.is_superuser}")
+>>> from pretalx.event.models import Team
+>>> admin_teams = Team.objects.filter(members=user, can_create_events=True)
+>>> print(f"Admin teams: {admin_teams.count()}")
+```
+
+**View admin dashboard:**
+- Regular admin: `https://your-domain.com/orga/`
+- Django admin (superusers only): `https://your-domain.com/admin/`
+
+**Check email functionality:**
+- MailHog frontend: `https://mail.your-domain.com`
+- Debug logs: `docker compose logs -f pretalx`
+
+### Configuration Quick Reference
+
+```ini
+[site]
+url = https://your-domain.com              # Your actual domain
+debug = false                              # true for development
+
+[oidc]
+op_discovery_endpoint = https://provider/.well-known/openid-configuration
+rp_client_id = your-client-id
+rp_client_secret = your-secret
+provider_name = Your SSO Provider
+hide_password_form = true                  # Hide password login
+admin_users = admin@example.com            # Comma-separated
+superuser = super@example.com              # Comma-separated
+
+[mail]
+from = noreply@your-domain.com
+host = smtp.provider.com
+port = 587
+user = smtp-user
+password = smtp-password
+tls = true
 ```
 
 ## Development

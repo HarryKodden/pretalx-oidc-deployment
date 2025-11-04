@@ -106,16 +106,40 @@ superuser =
 # Additional scopes to request (default: openid email profile)
 # scopes = openid email profile groups
 
-# [mail]
+[mail]
 # Configure email settings for notifications
-# from = noreply@yourdomain.com
-# host = smtp.example.com
+# For development with MailHog (included in docker-compose):
+from = noreply@yourdomain.com
+host = mailhog
+port = 1025
+user = 
+password = 
+tls = false
+ssl = false
+
+# For production SMTP (example configurations):
+# Gmail:
+# host = smtp.gmail.com
 # port = 587
-# user = smtp-user
-# password = smtp-password
+# user = your-email@gmail.com
+# password = your-app-password
 # tls = true
 
-# [locale]
+# SendGrid:
+# host = smtp.sendgrid.net
+# port = 587
+# user = apikey
+# password = your-sendgrid-api-key
+# tls = true
+
+# AWS SES:
+# host = email-smtp.us-east-1.amazonaws.com
+# port = 587
+# user = your-aws-access-key-id
+# password = your-aws-secret-access-key
+# tls = true
+
+[locale]
 # Default timezone and language
 # time_zone = UTC
 # language_code = en

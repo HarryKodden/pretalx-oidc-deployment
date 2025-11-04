@@ -7,10 +7,10 @@ from django.contrib.auth import login
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 
 from pretalx.person.models import User
-
 from .models import OIDCUserProfile
 
 logger = logging.getLogger(__name__)
+
 logger.warning("[OIDC Auth] auth.py module loaded - PretalxOIDCBackend class defined")
 
 
@@ -19,11 +19,12 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        logger.warning(f"[OIDC Auth] PretalxOIDCBackend instance created")
+        logger.warning("[OIDC Auth] PretalxOIDCBackend instance created")
 
     def _is_admin_user(self, claims):
         """Check if user should have admin privileges based on claims."""
         from pretalx.common.settings.config import build_config
+        
         config, _ = build_config()
         
         # Get admin users from config (comma-separated list)
@@ -48,6 +49,7 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
     def _is_superuser(self, claims):
         """Check if user should have superuser privileges based on claims."""
         from pretalx.common.settings.config import build_config
+        
         config, _ = build_config()
         
         # Get superuser users from config (comma-separated list)
@@ -80,6 +82,87 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
         
         return is_admin, is_superuser
 
+    def _sync_user_privileges_and_teams(self, user, should_be_admin, should_be_superuser):
+        """
+        Synchronize user privileges and team memberships with current config.
+        This method ensures that:
+        1. User Django flags (is_staff, is_superuser) are correctly set
+        2. User is added to/removed from admin teams as needed
+        """
+        logger.info(f"[OIDC Auth] Syncing privileges for {user.email}: admin={should_be_admin}, superuser={should_be_superuser}")
+        
+        # Update Django user flags
+        user_updated = False
+        if user.is_staff != should_be_admin:
+            logger.warning(f"[OIDC Auth] Updating is_staff: {user.is_staff} → {should_be_admin}")
+            user.is_staff = should_be_admin
+            user_updated = True
+            
+        if user.is_superuser != should_be_superuser:
+            logger.warning(f"[OIDC Auth] Updating is_superuser: {user.is_superuser} → {should_be_superuser}")
+            user.is_superuser = should_be_superuser
+            user_updated = True
+            
+        if user_updated:
+            user.save(update_fields=['is_staff', 'is_superuser'])
+        
+        # Handle team memberships for admin users
+        from pretalx.event.models import Team, Organiser
+        
+        if should_be_admin:
+            # User should be admin - ensure organiser and admin teams exist
+            
+            # Get or create default organiser
+            organiser, created = Organiser.objects.get_or_create(
+                slug='default-org',
+                defaults={
+                    'name': 'Default Organisation',
+                }
+            )
+            if created:
+                logger.warning(f"[OIDC Auth] Created default organiser: {organiser.name}")
+            
+            # Get or create admin team for this organiser
+            admin_team, team_created = Team.objects.get_or_create(
+                organiser=organiser,
+                name='Admin Team',
+                defaults={
+                    'can_create_events': True,
+                    'can_change_teams': True,
+                    'can_change_organiser_settings': True,
+                    'can_change_event_settings': True,
+                    'can_change_submissions': True,
+                }
+            )
+            if team_created:
+                logger.warning(f"[OIDC Auth] Created admin team: {admin_team.name}")
+            
+            # Add user to admin team if not already a member
+            if not admin_team.members.filter(pk=user.pk).exists():
+                admin_team.members.add(user)
+                logger.warning(f"[OIDC Auth] Added {user.email} to admin team: {admin_team.name}")
+                
+        else:
+            # User should NOT be admin - remove from ALL admin teams
+            admin_teams = Team.objects.filter(
+                can_create_events=True,
+                can_change_teams=True,
+                can_change_organiser_settings=True
+            )
+            current_admin_teams = admin_teams.filter(members=user)
+            for team in current_admin_teams:
+                logger.warning(f"[OIDC Auth] Removing {user.email} from admin team: {team.name}")
+                team.members.remove(user)
+        
+        # Log final state
+        admin_teams = Team.objects.filter(
+            can_create_events=True,
+            can_change_teams=True,
+            can_change_organiser_settings=True
+        )
+        final_admin_teams = admin_teams.filter(members=user).count()
+        logger.info(f"[OIDC Auth] User {user.email} sync complete: staff={user.is_staff}, superuser={user.is_superuser}, admin_teams={final_admin_teams}")
+
     def create_user(self, claims):
         """Create a new user from OIDC claims."""
         logger.warning(f"[OIDC Auth] create_user() called with claims: {claims}")
@@ -98,13 +181,8 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             name=claims.get("name", "") or claims.get("preferred_username", ""),
         )
         
-        # Set privileges if configured
-        if is_admin or is_superuser:
-            user.is_staff = True
-            user.is_superuser = is_superuser
-            user.save(update_fields=["is_staff", "is_superuser"])
-            privilege_type = "superuser" if is_superuser else "admin"
-            logger.warning(f"[OIDC Auth] Granted {privilege_type} privileges to user: {user.email}")
+        # Sync privileges and team memberships  
+        self._sync_user_privileges_and_teams(user, is_admin, is_superuser)
         
         logger.warning(f"[OIDC Auth] Created user: {user.email} (id={user.pk}, admin={is_admin}, superuser={is_superuser})")
 
@@ -130,24 +208,13 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             user.name = name
             user.save(update_fields=["name"])
 
-        # Check and update privileges
+        # Always sync privileges and team memberships on every login
+        # This ensures user permissions are always current with config
         is_admin, is_superuser = self._get_user_privileges(claims)
-        current_admin = user.is_staff
-        current_superuser = user.is_superuser
+        self._sync_user_privileges_and_teams(user, is_admin, is_superuser)
         
-        # Update privileges if they've changed
-        if (is_admin != current_admin) or (is_superuser != current_superuser):
-            user.is_staff = is_admin or is_superuser  # Staff = admin or superuser
-            user.is_superuser = is_superuser
-            user.save(update_fields=["is_staff", "is_superuser"])
-            
-            if is_superuser:
-                logger.warning(f"[OIDC Auth] Granted superuser privileges to existing user: {user.email}")
-            elif is_admin:
-                logger.warning(f"[OIDC Auth] Granted admin privileges to existing user: {user.email}")
-            else:
-                logger.warning(f"[OIDC Auth] Revoked admin/superuser privileges from user: {user.email}")
-
+        logger.warning(f"[OIDC Auth] Updated user {user.email}: admin={is_admin}, superuser={is_superuser}")
+        
         return user
 
     def filter_users_by_claims(self, claims):

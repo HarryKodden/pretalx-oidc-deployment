@@ -9,6 +9,7 @@ services:
       - ./static:/public/static
     depends_on:
       - redis
+      - mailhog
     networks:
       - pretalx-network
     command: >
@@ -25,6 +26,18 @@ services:
     networks:
       - pretalx-network
     restart: unless-stopped
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: pretalx-mailhog
+    # ports:
+    #   - "1025:1025"  # SMTP server
+    #   - "8025:8025"  # Web UI
+    networks:
+      - pretalx-network
+    restart: unless-stopped
+    environment:
+      MH_STORAGE: memory
 
   caddy:
     image: "caddy:alpine"
@@ -47,6 +60,8 @@ volumes:
   caddy_data:
     driver: local
   caddy_config:
+    driver: local
+  mailhog_data:
     driver: local
 
 networks:
