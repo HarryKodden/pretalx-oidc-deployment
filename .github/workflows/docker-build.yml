@@ -1,0 +1,140 @@
+name: Docker Build & Test
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: pretalx-oidc:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test Docker image builds successfully
+        run: |
+          docker images | grep pretalx-oidc
+
+      - name: Verify plugin is installed
+        run: |
+          docker run --rm pretalx-oidc:test pip list | grep pretalx-oidc || exit 1
+
+      - name: Check for security vulnerabilities (Trivy scan)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: pretalx-oidc:test
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Don't fail on vulnerabilities, just report
+
+      - name: Upload Trivy scan results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Build and push Docker image to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test configuration
+        run: |
+          cp pretalx.cfg.example pretalx.cfg
+          # Modify for testing (use example values)
+          sed -i 's|url = .*|url = http://localhost:8000|' pretalx.cfg
+          sed -i 's|op_discovery_endpoint = .*|op_discovery_endpoint = https://example.com|' pretalx.cfg
+
+      - name: Start services
+        run: |
+          docker compose up -d postgres redis mailhog
+          sleep 10  # Wait for services to be ready
+
+      - name: Build and start pretalx
+        run: |
+          docker compose build pretalx
+          docker compose up -d pretalx
+          sleep 20  # Wait for pretalx to initialize
+
+      - name: Check services are running
+        run: |
+          docker compose ps
+          docker compose logs pretalx | tail -50
+
+      - name: Verify pretalx starts without errors
+        run: |
+          # Check if pretalx container is running
+          docker compose ps pretalx | grep "Up" || exit 1
+          
+          # Check logs for critical errors
+          if docker compose logs pretalx | grep -i "critical\|error.*failed"; then
+            echo "Found critical errors in logs"
+            docker compose logs pretalx
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v

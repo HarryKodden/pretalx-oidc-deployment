@@ -1,6 +1,19 @@
 # Pretalx with OIDC Authentication
 
+[![Docker Build](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/docker-build.yml/badge.svg)](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/docker-build.yml)
+[![Lint](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/lint.yml/badge.svg)](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/lint.yml)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Pretalx](https://img.shields.io/badge/Pretalx-v2025.2.0-orange)](https://pretalx.com)
+[![OIDC](https://img.shields.io/badge/OIDC-Enabled-green)](https://openid.net/connect/)
+
+---
+
 A complete Docker-based deployment for [pretalx](https://pretalx.com) with OpenID Connect (OIDC) authentication support. This setup enables OIDC-only authentication while hiding traditional password-based login forms.
+
+> **🔌 Plugin-Based** | **🔒 SSO Authentication** | **📦 Docker Compose**
 
 ## Features
 
@@ -575,6 +588,52 @@ docker compose exec pretalx python manage.py rebuild
 docker compose exec pretalx python manage.py migrate
 ```
 
+## CI/CD
+
+This project includes GitHub Actions workflows for continuous integration:
+
+### Docker Build & Test (`.github/workflows/docker-build.yml`)
+
+Automatically runs on push and pull requests:
+
+1. **Builds the Docker image** - Verifies the image builds successfully
+2. **Tests plugin installation** - Ensures pretalx-oidc plugin is installed correctly
+3. **Security scanning** - Uses Trivy to scan for vulnerabilities
+4. **Integration tests** - Starts docker-compose stack and verifies services run
+5. **Publishes to GHCR** - Pushes images to GitHub Container Registry (on main branch)
+
+**Image tags published:**
+- `ghcr.io/harrykodden/pretalx-oidc-deployment:latest` - Latest main branch
+- `ghcr.io/harrykodden/pretalx-oidc-deployment:main` - Main branch builds
+- `ghcr.io/harrykodden/pretalx-oidc-deployment:v*` - Version tags
+- `ghcr.io/harrykodden/pretalx-oidc-deployment:sha-<commit>` - Specific commits
+
+### Code Quality (`.github/workflows/lint.yml`)
+
+Runs linting and code quality checks:
+
+1. **Black** - Code formatting verification
+2. **isort** - Import statement ordering
+3. **flake8** - Python linting and style checks
+4. **Config validation** - Validates INI configuration files
+
+### Using Pre-Built Images
+
+Instead of building locally, you can use pre-built images from GHCR:
+
+```yaml
+# docker-compose.yml
+services:
+  pretalx:
+    image: ghcr.io/harrykodden/pretalx-oidc-deployment:latest
+    # ... rest of configuration
+```
+
+Or pull directly:
+```bash
+docker pull ghcr.io/harrykodden/pretalx-oidc-deployment:latest
+```
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
@@ -616,13 +675,13 @@ For issues related to:
 
 This project builds upon:
 
-- **[pretalx](https://pretalx.com)** - Tobias Kunze and contributors - Conference planning tool
+- **[pretalx](https://pretalx.com)** - Conference planning tool
 - **[mozilla-django-oidc](https://github.com/mozilla/mozilla-django-oidc)** - Mozilla - OIDC authentication library for Django
 - **[pretalx plugin system](https://docs.pretalx.org/developer/plugins/)** - Official plugin architecture
 
 ## Project Status
 
-✅ **Production Ready** - Currently deployed and tested with:
+Currently deployed and tested with:
 - Keycloak 24+
 - PostgreSQL 14
 - Python 3.10
@@ -630,8 +689,7 @@ This project builds upon:
 
 Tested OIDC providers:
 - ✅ Keycloak
-- ⚠️ Auth0 (should work, not extensively tested)
-- ⚠️ Azure AD (should work, not extensively tested)
+- ✅ SURFconext
 
 ## Roadmap
 

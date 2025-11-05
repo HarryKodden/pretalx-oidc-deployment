@@ -2,6 +2,7 @@
 .git
 .gitignore
 .gitattributes
+.github
 
 # Python
 __pycache__
@@ -29,7 +30,9 @@ Thumbs.db
 
 # Documentation (not needed in image)
 *.md
-!src/pretalx-oidc/README.md
+!pretalx-oidc-plugin/README.md
+CONTRIBUTING.md
+LICENSE
 
 # Test files
 .pytest_cache/
@@ -38,12 +41,20 @@ htmlcov/
 
 # Local data and config (will be mounted as volumes)
 data/
+media/
+static/
+pgdata/
+mailhog_data/
 *.sqlite3
 db.sqlite3
 pretalx.cfg
+!pretalx.cfg.example
 *.log
 
 # Docker
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+# Caddy
+Caddyfile/
