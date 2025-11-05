@@ -37,7 +37,18 @@ Thumbs.db
 *.log
 logs/
 
+# Environment files
 .env
-DEPLOYMENT_README.md
-Caddyfile
-docker-compose.yml
+.env.local
+.env.*.local
+
+# CI/Testing artifacts
+trivy-results.sarif
+coverage.xml
+.coverage
+.pytest_cache/
+
+# Temporary files
+*.tmp
+*.temp
+.backup/

@@ -18,6 +18,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write  # Required for uploading Trivy SARIF results
 
     steps:
       - name: Checkout repository
@@ -31,7 +32,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ secrets.GITHUB_USERNAME }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata for Docker
@@ -79,6 +80,17 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
+        continue-on-error: true  # Don't fail if SARIF upload fails (e.g., in forks)
+
+      - name: Display Trivy scan summary
+        if: always()
+        run: |
+          echo "Trivy security scan completed. Check the Security tab for detailed results."
+          if [ -f trivy-results.sarif ]; then
+            echo "SARIF file generated successfully"
+            # Display a summary of findings
+            cat trivy-results.sarif | jq -r '.runs[0].results | length' 2>/dev/null || echo "No JSON parser available"
+          fi
 
       - name: Build and push Docker image to GHCR
         if: github.event_name != 'pull_request'

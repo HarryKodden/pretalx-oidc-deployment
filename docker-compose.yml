@@ -1,0 +1,85 @@
+name: pretalx
+
+services:
+  pretalx:
+    build: .
+    container_name: pretalx-oidc
+    volumes:
+      - ./pretalx.cfg:/etc/pretalx/pretalx.cfg:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - pretalx-network
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "
+      python manage.py migrate &&
+      python manage.py rebuild &&
+      python manage.py runserver 0.0.0.0:8000
+      "
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: pretalx-redis
+    networks:
+      - pretalx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: pretalx-mailhog
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    networks:
+      - pretalx-network
+    restart: unless-stopped
+    environment:
+      MH_STORAGE: memory
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8025 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5 
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: pretalx-postgres
+    environment:
+      POSTGRES_DB: pretalx
+      POSTGRES_USER: pretalxuser
+      POSTGRES_PASSWORD: pretalxpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - pretalx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pretalxuser -d pretalx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mailhog_data:
+    driver: local
+  pgdata:
+    driver: local
+
+networks:
+  pretalx-network:
+    driver: bridge

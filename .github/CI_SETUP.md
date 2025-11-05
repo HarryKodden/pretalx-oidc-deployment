@@ -228,6 +228,10 @@ deploy:
 ### Security Alerts
 
 - **Security Tab** - View Trivy scan results
+- **SARIF Upload** - Security findings are uploaded to GitHub Security tab
+  - Requires `security-events: write` permission
+  - May fail in forks or pull requests from forks
+  - Workflow continues even if SARIF upload fails
 - **Dependabot** - Automatic dependency updates
 - **Code Scanning** - CVE and security issue tracking
 
@@ -255,6 +259,27 @@ Ensure the repository has the correct permissions:
 ```
 Settings → Actions → General → Workflow permissions → Read and write permissions
 ```
+
+### SARIF Upload Failures
+
+If you see "Resource not accessible by integration" for CodeQL SARIF uploads:
+
+1. **Check permissions**: Workflow needs `security-events: write` permission
+2. **Fork limitations**: SARIF upload may fail in forks - this is expected
+3. **Solution**: The workflow continues with `continue-on-error: true`
+
+Example error:
+```
+Warning: This run of the CodeQL Action does not have permission to access the CodeQL Action endpoints
+Error: Resource not accessible by integration
+```
+
+This is normal for:
+- Pull requests from forks
+- Repositories without security features enabled
+- Insufficient permissions
+
+The security scan still runs and completes successfully.
 
 ### Cache Issues
 
