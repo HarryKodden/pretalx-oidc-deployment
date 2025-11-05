@@ -256,6 +256,11 @@ def configure_oidc_settings():  # noqa: C901
         "OIDC_AUTHENTICATION_CALLBACK_URL",
         "plugins:pretalx_oidc:oidc_authentication_callback",
     )
+    setattr(
+        django_settings,
+        "OIDC_AUTHENTICATION_REQUEST_URL",
+        "plugins:pretalx_oidc:oidc_authentication_init",
+    )
 
     # CRITICAL: Tell mozilla-django-oidc which authentication backend class to use
     # Without this, it won't know to use our custom backend!
@@ -272,9 +277,19 @@ def configure_oidc_settings():  # noqa: C901
         config.get("oidc", "provider_name", fallback="OIDC"),
     )
 
+    # HTTPS redirect enforcement
+    setattr(
+        django_settings,
+        "OIDC_FORCE_HTTPS_REDIRECT",
+        config.getboolean("oidc", "force_https_redirect", fallback=False),
+    )
+
     logger.info("[OIDC] Configuration complete:")
     logger.info(f"  - Client ID: {django_settings.OIDC_RP_CLIENT_ID}")
     logger.info(f"  - Provider: {django_settings.OIDC_PROVIDER_NAME}")
+    logger.info(
+        f"  - Request URL name: {django_settings.OIDC_AUTHENTICATION_REQUEST_URL}"
+    )
     logger.info(
         f"  - Callback URL name: {django_settings.OIDC_AUTHENTICATION_CALLBACK_URL}"
     )

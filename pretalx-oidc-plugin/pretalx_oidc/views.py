@@ -4,6 +4,8 @@
 import logging
 
 from django.urls import reverse
+from django.http import HttpResponseRedirect
+from django.conf import settings
 from mozilla_django_oidc.views import (
     OIDCAuthenticationCallbackView,
     OIDCAuthenticationRequestView,
@@ -16,32 +18,28 @@ class PretalxOIDCAuthenticationRequestView(OIDCAuthenticationRequestView):
     """Custom OIDC login initiation view for pretalx."""
 
     def get(self, request):
-        # Store the next URL in session
-        next_url = request.GET.get("next", "")
-        if next_url:
-            request.session["oidc_login_next"] = next_url
-        return super().get(request)
+        """Override get method to enforce HTTPS redirect URIs."""
+        logger.info("[OIDC] Processing authentication request")
 
-    def get_callback_url(self, request):
-        """Override to ensure HTTPS redirect URI."""
-        callback_url = super().get_callback_url(request)
+        # Call parent get method to get the response
+        response = super().get(request)
 
-        # Force HTTPS if configured
-        from pretalx.common.settings.config import build_config
+        # Check if HTTPS redirect enforcement is enabled
+        force_https = getattr(settings, "OIDC_FORCE_HTTPS_REDIRECT", False)
 
-        config, _ = build_config()
+        # If it's a redirect response and HTTPS enforcement is enabled
+        if force_https and hasattr(response, "url"):
+            original_url = response.url
 
-        force_https = False
-        if config.has_section("oidc"):
-            force_https = config.getboolean(
-                "oidc", "force_https_redirect", fallback=False
-            )
+            # Check if URL contains HTTP redirect_uri and replace with HTTPS
+            if "redirect_uri=http%3A%2F%2F" in original_url:
+                modified_url = original_url.replace(
+                    "redirect_uri=http%3A%2F%2F", "redirect_uri=https%3A%2F%2F"
+                )
+                response = HttpResponseRedirect(modified_url)
+                logger.info("[OIDC] Enforced HTTPS redirect URI")
 
-        if force_https and callback_url.startswith("http://"):
-            callback_url = callback_url.replace("http://", "https://", 1)
-            logger.info(f"[OIDC] Forced HTTPS redirect URI: {callback_url}")
-
-        return callback_url
+        return response
 
 
 class PretalxOIDCAuthenticationCallbackView(OIDCAuthenticationCallbackView):
@@ -50,7 +48,7 @@ class PretalxOIDCAuthenticationCallbackView(OIDCAuthenticationCallbackView):
     @property
     def success_url(self):
         """Return the URL to redirect to after successful authentication."""
-        logger.warning(f"[OIDC View] success_url property called! User: {self.user}")
+        logger.info("[OIDC] Authentication successful, determining redirect URL")
 
         # Get the stored next URL
         next_url = self.request.session.pop("oidc_login_next", None)
@@ -64,12 +62,12 @@ class PretalxOIDCAuthenticationCallbackView(OIDCAuthenticationCallbackView):
                 # Otherwise go to organizer dashboard or event list
                 next_url = reverse("orga:event.list")
 
-        logger.warning(f"[OIDC View] Redirecting to: {next_url}")
+        logger.info(f"[OIDC] Redirecting to: {next_url}")
         return next_url
 
     @property
     def failure_url(self):
         """Return the URL to redirect to after failed authentication."""
-        logger.error("[OIDC View] failure_url property called!")
+        logger.error("[OIDC] Authentication failed")
         # Redirect to login page with error
         return reverse("orga:login") + "?oidc_error=1"
