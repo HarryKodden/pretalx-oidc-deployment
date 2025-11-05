@@ -22,6 +22,24 @@ class PretalxOIDCAuthenticationRequestView(OIDCAuthenticationRequestView):
             request.session["oidc_login_next"] = next_url
         return super().get(request)
 
+    def get_callback_url(self, request):
+        """Override to ensure HTTPS redirect URI."""
+        callback_url = super().get_callback_url(request)
+        
+        # Force HTTPS if configured
+        from pretalx.common.settings.config import build_config
+        config, _ = build_config()
+        
+        force_https = False
+        if config.has_section("oidc"):
+            force_https = config.getboolean("oidc", "force_https_redirect", fallback=False)
+        
+        if force_https and callback_url.startswith("http://"):
+            callback_url = callback_url.replace("http://", "https://", 1)
+            logger.info(f"[OIDC] Forced HTTPS redirect URI: {callback_url}")
+        
+        return callback_url
+
 
 class PretalxOIDCAuthenticationCallbackView(OIDCAuthenticationCallbackView):
     """Custom OIDC callback view for pretalx."""

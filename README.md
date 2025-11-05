@@ -46,6 +46,7 @@ A complete Docker-based deployment for [pretalx](https://pretalx.com) with OpenI
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
   - [Required Settings](#required-settings)
+  - [HTTPS Redirect URI Configuration](#https-redirect-uri-configuration)
   - [Email Configuration](#email-configuration)
   - [OIDC Provider Setup](#oidc-provider-setup)
   - [Admin Users & Superusers](#admin-users--superusers)
@@ -159,8 +160,78 @@ provider_name = Your Provider Name
 # Hide password authentication (recommended for OIDC-only)
 hide_password_form = true
 
+# Force HTTPS redirect URIs (recommended for production behind reverse proxy)
+force_https_redirect = true
+
 # Admin users (comma-separated list of OIDC 'sub' or email)
 admin_users = user-sub-claim-id, admin@example.com
+```
+
+### HTTPS Redirect URI Configuration
+
+When deploying pretalx behind a reverse proxy (nginx, Apache, Caddy, etc.), you may encounter issues where OIDC redirect URIs are generated with `http://` instead of `https://`, causing authentication failures.
+
+#### The Problem
+
+```
+Error: invalid_redirect_uri
+Expected: https://your-domain.com/oidc/callback/
+Received: http://your-domain.com/oidc/callback/
+```
+
+#### The Solution
+
+Configure both **proxy settings** and **HTTPS enforcement**:
+
+```ini
+[site]
+# Use HTTPS URLs for production
+url = https://your-domain.com
+media_url = https://your-domain.com/media/
+static_url = https://your-domain.com/static/
+
+# Trust proxy headers (CRITICAL for HTTPS detection)
+trust_x_forwarded_proto = true
+trust_x_forwarded_for = true
+secure_proxy_ssl_header = true
+use_x_forwarded_host = true
+
+[oidc]
+# Force HTTPS redirect URIs (plugin-level enforcement)
+force_https_redirect = true
+```
+
+#### Reverse Proxy Configuration
+
+**Caddy** (automatic):
+```caddy
+your-domain.com {
+    reverse_proxy pretalx-container:8000
+    # Caddy automatically sets proper headers
+}
+```
+
+**Nginx**:
+```nginx
+location / {
+    proxy_pass http://pretalx-container:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+}
+```
+
+**Apache**:
+```apache
+ProxyPreserveHost On
+ProxyPass / http://pretalx-container:8000/
+ProxyPassReverse / http://pretalx-container:8000/
+RequestHeader set X-Forwarded-Proto "https"
+RequestHeader set X-Forwarded-For %{REMOTE_ADDR}s
+```
+
+This ensures that pretalx generates correct HTTPS redirect URIs that match your OIDC provider's registered callback URLs.
 ```
 
 ### Email Configuration
@@ -423,6 +494,47 @@ Pretalx automatically handles this. If you still see CSRF errors:
 - For HTTPS deployments, set `trust_x_forwarded_proto = true`
 - Verify your reverse proxy sets the `X-Forwarded-Proto: https` header
 
+### Invalid redirect URI errors
+
+**Error**: `invalid_redirect_uri` - Expected `https://` but received `http://`
+
+**Cause**: Pretalx is generating HTTP redirect URIs instead of HTTPS behind a reverse proxy.
+
+**Solution**: Configure HTTPS detection:
+
+1. **Set HTTPS URL** in `pretalx.cfg`:
+   ```ini
+   [site]
+   url = https://your-domain.com
+   ```
+
+2. **Enable proxy trust**:
+   ```ini
+   trust_x_forwarded_proto = true
+   trust_x_forwarded_for = true
+   secure_proxy_ssl_header = true
+   use_x_forwarded_host = true
+   ```
+
+3. **Force HTTPS redirects** (plugin-level):
+   ```ini
+   [oidc]
+   force_https_redirect = true
+   ```
+
+4. **Configure reverse proxy** to send proper headers:
+   - Caddy: Automatic
+   - Nginx: `proxy_set_header X-Forwarded-Proto $scheme;`
+   - Apache: `RequestHeader set X-Forwarded-Proto "https"`
+
+5. **Restart pretalx**: `docker compose restart pretalx`
+
+**Verify**: Check that OIDC init URL generates HTTPS callback:
+```bash
+curl -I https://your-domain.com/oidc/init/
+# Location header should contain https://your-domain.com/oidc/callback/
+```
+
 ### User not created on first login
 
 - Check OIDC provider returns `email` claim in the ID token
@@ -520,12 +632,19 @@ docker compose up -d --build
 url = https://your-domain.com              # Your actual domain
 debug = false                              # true for development
 
+# HTTPS proxy settings (required for production)
+trust_x_forwarded_proto = true
+trust_x_forwarded_for = true
+secure_proxy_ssl_header = true
+use_x_forwarded_host = true
+
 [oidc]
 op_discovery_endpoint = https://provider/.well-known/openid-configuration
 rp_client_id = your-client-id
 rp_client_secret = your-secret
 provider_name = Your SSO Provider
 hide_password_form = true                  # Hide password login
+force_https_redirect = true                # Force HTTPS callback URLs
 admin_users = admin@example.com            # Comma-separated
 superuser = super@example.com              # Comma-separated
 
