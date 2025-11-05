@@ -1,24 +1,72 @@
 # Pretalx with OIDC Authentication
 
-A complete deployment setup for [pretalx](https://pretalx.com) with OpenID Connect (OIDC) authentication support. This repository provides a Docker-based deployment that enables OIDC-only authentication, hiding traditional password-based login.
+A complete Docker-based deployment for [pretalx](https://pretalx.com) with OpenID Connect (OIDC) authentication support. This setup enables OIDC-only authentication while hiding traditional password-based login forms.
 
 ## Features
 
 ✨ **OIDC Authentication**
 - Single Sign-On (SSO) via OpenID Connect
-- Auto-discovery from OIDC provider's `.well-known/openid-configuration`
-- Automatic user creation on first login
-- User profile synchronization
+- Auto-discovery from OIDC provider's `.well-known/openid-configuration` endpoint
+- Automatic user creation and profile synchronization on first login
+- Support for any standards-compliant OIDC provider (Keycloak, Auth0, Azure AD, etc.)
 
-🔒 **Security**
-- OIDC-only mode (password authentication hidden)
-- Admin role assignment via OIDC claims
-- CSRF protection for HTTPS deployments
+🔒 **Security & Access Control**
+- OIDC-only mode (password authentication hidden via CSS injection)
+- Admin and superuser role assignment via OIDC claims
+- Automatic privilege synchronization on every login
+- Per-event plugin enablement for granular control
 
-🎨 **User Experience**
-- Clean login page with only OIDC button
-- Password change sections hidden throughout the application
-- Seamless integration with pretalx UI
+🎨 **Clean User Experience**
+- Login pages show only OIDC button
+- Password forms hidden on login, registration, and profile pages
+- CSS-based form hiding (no template patching required)
+- Seamless integration with pretalx's existing UI
+
+🏗️ **Architecture**
+- Native pretalx plugin using Django signals
+- No core pretalx modifications required
+- Configuration via `pretalx.cfg` (standard pretalx config file)
+- Docker Compose setup with PostgreSQL, Redis, and MailHog
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+  - [Required Settings](#required-settings)
+  - [Email Configuration](#email-configuration)
+  - [OIDC Provider Setup](#oidc-provider-setup)
+  - [Admin Users & Superusers](#admin-users--superusers)
+- [Docker Deployment](#docker-deployment)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Quick Reference](#quick-reference)
+- [License](#license)
+
+## Key Technical Decisions
+
+This deployment makes several important architectural choices:
+
+1. **CSS-based Form Hiding**: Password forms are hidden via injected CSS rather than template modifications. This approach:
+   - Survives pretalx updates (no template patching needed)
+   - Can be toggled via configuration (`hide_password_form`)
+   - Uses Django signals for clean integration
+
+2. **Per-Event Plugin Enablement**: The plugin must be manually enabled for each event. This is by design because:
+   - Pretalx doesn't provide signals for event creation
+   - Gives organizers control over which events use OIDC
+   - Follows pretalx's plugin architecture patterns
+
+3. **No Core Modifications**: The entire OIDC integration is achieved through:
+   - A standard pretalx plugin installed via pip
+   - Django signal receivers for UI injection
+   - Standard `pretalx.cfg` configuration
+   - Zero changes to pretalx core code
+
+4. **Automatic Privilege Sync**: User privileges (admin/superuser) sync on every OIDC login:
+   - No manual sync commands needed
+   - Configuration changes take effect immediately
+   - Both Django permissions and team memberships updated
 
 ## Quick Start
 
@@ -48,13 +96,30 @@ Edit `pretalx.cfg` with your settings (see [Configuration](#configuration) below
 ### 3. Build and start
 
 ```bash
-docker-compose build
-docker-compose up -d
+docker compose build
+docker compose up -d
 ```
 
-### 4. Access pretalx
+### 4. Initialize database and access pretalx
 
-Open your browser to the URL configured in `pretalx.cfg` (default: http://localhost:8355)
+The first time you start the containers, the database will be automatically migrated and static files built.
+
+Access pretalx at the URL configured in `pretalx.cfg` section `[site]` → `url`.
+
+### 5. Enable the OIDC plugin for each event
+
+**Important**: The OIDC plugin must be manually enabled for each event:
+
+1. Log in via OIDC (or use password auth for initial setup)
+2. Go to event settings: `/orga/event/{event-slug}/settings/plugins`
+3. Find "OIDC Authentication" in the plugin list
+4. Check the box to enable it
+5. Click Save
+
+Once enabled, the event will have:
+- OIDC login button on login pages
+- Password forms hidden (if `hide_password_form = true`)
+- Clean OIDC-only authentication experience
 
 ## Configuration
 
@@ -267,74 +332,133 @@ environment:
 
 ## Architecture
 
-This deployment includes:
+This deployment uses a **clean plugin-based architecture** following pretalx best practices:
 
-1. **pretalx-oidc plugin** - Custom OIDC authentication backend
-2. **Template patches** - Hide password forms throughout the UI
-3. **Settings patches** - CSRF and OIDC configuration
-4. **Docker setup** - Complete containerized deployment
+### Components
 
-### Plugin Components
+1. **pretalx-oidc Plugin** (`pretalx-oidc-plugin/`)
+   - Custom OIDC authentication backend extending `mozilla-django-oidc`
+   - Django signal receivers for injecting UI modifications
+   - No template patching - all UI changes via CSS injection
+   - Configuration via standard `pretalx.cfg`
 
-- `pretalx_oidc/auth.py` - OIDC authentication backend with admin role support
-- `pretalx_oidc/views.py` - Custom OIDC login/callback handlers
-- `pretalx_oidc/signals.py` - Add OIDC button to login page
-- `pretalx_oidc/context_processors.py` - Template context for hiding password forms
-- `pretalx_oidc/config.py` - OIDC auto-discovery and Django settings configuration
+2. **Docker Setup**
+   - **pretalx**: Main application container (Python 3.10)
+   - **postgres**: PostgreSQL 14 database
+   - **redis**: Cache and session storage
+   - **mailhog**: Development email testing (SMTP server + web UI)
+
+### Plugin Architecture
+
+The `pretalx_oidc` plugin uses Django signals to integrate cleanly with pretalx:
+
+- **`auth.py`** - OIDC authentication backend with admin role mapping
+- **`signals.py`** - Signal receivers that:
+  - Inject OIDC login button (`auth_html` signal)
+  - Inject CSS to hide password forms (`cfp_html_head`, `orga_html_head`, `html_above_profile_page` signals)
+- **`views.py`** - Custom OIDC login/callback handlers
+- **`config.py`** - Auto-discovery and Django settings configuration
+- **`context_processors.py`** - Template context for configuration access
+- **`urls.py`** - OIDC callback URL routing
+
+### How Password Forms Are Hidden
+
+Instead of patching pretalx templates (which would break on updates), the plugin:
+
+1. Reads `hide_password_form` configuration from `pretalx.cfg`
+2. Uses Django signals to inject CSS into page `<head>` tags
+3. CSS rules hide password-related form fields with `display: none !important`
+4. Works on login, registration, organizer, and profile pages
+5. No core pretalx files are modified
+
+### Why This Approach?
+
+✅ **Update-safe**: No template modifications, survives pretalx upgrades  
+✅ **Reversible**: Disable plugin or set `hide_password_form = false` to restore password auth  
+✅ **Standard**: Uses pretalx's official plugin system and signals  
+✅ **Clean**: No monkey-patching or core code modifications
 
 ## Troubleshooting
 
+### Plugin not working for new event
+
+**Solution**: The plugin must be manually enabled per-event:
+- Go to `/orga/event/{event-slug}/settings/plugins`
+- Enable "OIDC Authentication"
+- Click Save
+
+This is by design - pretalx doesn't provide signals for auto-enabling plugins on event creation.
+
 ### Login redirects back to login page
 
-- Check that `admin_users` includes your OIDC identifier
-- Verify the OIDC callback URL is correctly configured
-- Check Docker logs: `docker-compose logs -f`
+- Check that `admin_users` or `superuser` includes your OIDC identifier (sub or email)
+- Verify the OIDC callback URL in your provider matches: `https://your-domain.com/oidc/callback/`
+- Check Docker logs: `docker compose logs -f pretalx`
+- Ensure plugin is enabled for the event (see above)
+
+### Password forms still visible
+
+- Verify `hide_password_form = true` is set in `[oidc]` section of `pretalx.cfg`
+- Ensure the plugin is enabled for the event at `/orga/event/{event-slug}/settings/plugins`
+- Check browser console for CSS loading issues
+- Clear browser cache and hard refresh (Ctrl+Shift+R / Cmd+Shift+R)
 
 ### CSRF errors on logout
 
-- Ensure `url` in `[site]` matches your actual domain
-- For HTTPS, set `trust_x_forwarded_proto = true`
+Pretalx automatically handles this. If you still see CSRF errors:
+- Ensure `url` in `[site]` section matches your actual domain (including https://)
+- For HTTPS deployments, set `trust_x_forwarded_proto = true`
+- Verify your reverse proxy sets the `X-Forwarded-Proto: https` header
 
-### SSL proxy not recognized (HTTPS links show as HTTP)
+### User not created on first login
 
-- Ensure your reverse proxy sets `X-Forwarded-Proto: https` header
-- The application automatically configures Django to trust proxy SSL headers
-- If issues persist, verify proxy configuration passes the correct headers
+- Check OIDC provider returns `email` claim in the ID token
+- Verify client ID and secret are correct in `pretalx.cfg`
+- Check logs for authentication errors: `docker compose logs pretalx | grep OIDC`
 
-### User not created
+### Finding user's OIDC sub claim
 
-- Check OIDC provider returns `email` claim
-- Verify `hide_password_form = true` is set
-- Check logs for authentication errors
-
-### Finding user's sub claim
-
-Check Docker logs after login:
+Check Docker logs after a successful login:
 ```bash
-docker-compose logs | grep "sub="
+docker compose logs pretalx | grep "sub="
+```
+
+Or use the Django shell:
+```bash
+docker compose exec pretalx python manage.py shell
+>>> from pretalx.person.models import User
+>>> user = User.objects.get(email="user@example.com")
+>>> user.oidc_id  # This is the 'sub' claim
 ```
 
 ## Quick Reference
 
 ### Common Tasks
 
-### Common Tasks
+**Enable plugin for a new event:**
+1. Create event in pretalx
+2. Go to `/orga/event/{event-slug}/settings/plugins`
+3. Enable "OIDC Authentication"
+4. Save
 
 **Add admin user:**
 1. Edit `pretalx.cfg`: Add email to `admin_users`
-2. User gets admin access on next OIDC login (automatic)
+2. Restart container: `docker compose restart pretalx`
+3. User gets admin access on next OIDC login (automatic)
 
 **Remove admin user:**
 1. Edit `pretalx.cfg`: Remove email from `admin_users`  
-2. User loses admin access on next OIDC login (automatic)
+2. Restart container: `docker compose restart pretalx`
+3. User loses admin access on next OIDC login (automatic)
 
 **Promote to superuser:**
 1. Edit `pretalx.cfg`: Move email from `admin_users` to `superuser`
-2. User gets superuser access on next OIDC login (automatic)
+2. Restart container: `docker compose restart pretalx`
+3. User gets superuser access on next OIDC login (automatic)
 
 **Check user privileges:**
 ```bash
-# Check specific user in Django shell
+# Django shell
 docker compose exec pretalx python manage.py shell
 >>> from pretalx.person.models import User
 >>> user = User.objects.get(email="user@example.com")
@@ -344,13 +468,37 @@ docker compose exec pretalx python manage.py shell
 >>> print(f"Admin teams: {admin_teams.count()}")
 ```
 
+**View logs:**
+```bash
+# All services
+docker compose logs -f
+
+# Just pretalx
+docker compose logs -f pretalx
+
+# Search for OIDC-related logs
+docker compose logs pretalx | grep OIDC
+```
+
 **View admin dashboard:**
 - Regular admin: `https://your-domain.com/orga/`
 - Django admin (superusers only): `https://your-domain.com/admin/`
 
 **Check email functionality:**
-- MailHog frontend: `https://mail.your-domain.com`
-- Debug logs: `docker compose logs -f pretalx`
+- MailHog web UI: `http://localhost:8025` (or your configured mail domain)
+- SMTP server: `mailhog:1025` (from containers)
+
+**Restart services:**
+```bash
+# All services
+docker compose restart
+
+# Just pretalx
+docker compose restart pretalx
+
+# Rebuild and restart
+docker compose up -d --build
+```
 
 ### Configuration Quick Reference
 
@@ -379,40 +527,120 @@ tls = true
 
 ## Development
 
-To modify the plugin:
+### Modifying the Plugin
 
-1. Edit files in `pretalx-oidc/pretalx_oidc/`
-2. Rebuild: `docker-compose build`
-3. Restart: `docker-compose restart`
+To modify the OIDC plugin:
 
-Enable debug logging:
+1. Edit files in `pretalx-oidc-plugin/pretalx_oidc/`
+2. **For rapid iteration** (no rebuild needed):
+   ```bash
+   # Copy updated file to running container
+   docker cp pretalx-oidc-plugin/pretalx_oidc/signals.py pretalx-oidc:/pretalx-oidc/pretalx_oidc/signals.py
+   # Django auto-reload will pick up changes
+   ```
+3. **For permanent changes**, rebuild:
+   ```bash
+   docker compose build pretalx
+   docker compose up -d
+   ```
+
+### Enable Debug Logging
+
+Edit `pretalx.cfg`:
 ```ini
 [site]
 debug = true
 ```
 
+Then check logs:
+```bash
+docker compose logs -f pretalx
+```
+
+### Accessing Django Shell
+
+```bash
+docker compose exec pretalx python manage.py shell
+```
+
+### Rebuilding Static Files
+
+```bash
+docker compose exec pretalx python manage.py rebuild
+```
+
+### Running Migrations
+
+```bash
+docker compose exec pretalx python manage.py migrate
+```
+
 ## License
 
-This OIDC plugin is provided as-is for use with pretalx. See LICENSE file.
+This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
 
-Pretalx itself is licensed under the Apache License 2.0.
+The OIDC plugin (`pretalx-oidc-plugin/`) is provided as-is for use with pretalx.
+
+[Pretalx](https://pretalx.com) itself is licensed under the Apache License 2.0.
 
 ## Contributing
 
-Contributions welcome! Please:
+Contributions are welcome! To contribute:
 
 1. Fork this repository
-2. Create a feature branch
-3. Submit a pull request
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes
+4. Test with a local deployment
+5. Commit: `git commit -m 'Add amazing feature'`
+6. Push: `git push origin feature/amazing-feature`
+7. Open a Pull Request
+
+Please ensure:
+- Code follows pretalx plugin best practices
+- No modifications to pretalx core files
+- Changes use Django signals for integration
+- Documentation is updated
 
 ## Support
 
 For issues related to:
-- **OIDC plugin**: Open an issue in this repository
-- **Pretalx core**: See [pretalx documentation](https://docs.pretalx.org)
-- **OIDC providers**: Consult your provider's documentation
 
-## Credits
+- **This OIDC plugin or deployment**: [Open an issue](https://github.com/HarryKodden/pretalx-oidc-deployment/issues) in this repository
+- **Pretalx core functionality**: See [pretalx documentation](https://docs.pretalx.org)
+- **OIDC provider configuration**: Consult your provider's documentation
+  - [Keycloak](https://www.keycloak.org/documentation)
+  - [Auth0](https://auth0.com/docs)
+  - [Azure AD](https://docs.microsoft.com/azure/active-directory/)
 
-- [pretalx](https://pretalx.com) - Conference planning tool
-- [mozilla-django-oidc](https://github.com/mozilla/mozilla-django-oidc) - OIDC library
+## Acknowledgments
+
+This project builds upon:
+
+- **[pretalx](https://pretalx.com)** - Tobias Kunze and contributors - Conference planning tool
+- **[mozilla-django-oidc](https://github.com/mozilla/mozilla-django-oidc)** - Mozilla - OIDC authentication library for Django
+- **[pretalx plugin system](https://docs.pretalx.org/developer/plugins/)** - Official plugin architecture
+
+## Project Status
+
+✅ **Production Ready** - Currently deployed and tested with:
+- Keycloak 24+
+- PostgreSQL 14
+- Python 3.10
+- Pretalx v2025.2.0.dev0
+
+Tested OIDC providers:
+- ✅ Keycloak
+- ⚠️ Auth0 (should work, not extensively tested)
+- ⚠️ Azure AD (should work, not extensively tested)
+
+## Roadmap
+
+Potential future enhancements:
+
+- [ ] Automated tests for plugin
+- [ ] Support for OIDC group-based role mapping
+- [ ] Alternative to CSS-based form hiding (middleware or template tags)
+- [ ] Documentation for additional OIDC providers
+- [ ] Health check endpoints
+
+Contributions for any of these are welcome!

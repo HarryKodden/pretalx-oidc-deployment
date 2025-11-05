@@ -187,13 +187,26 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
         logger.warning(f"[OIDC Auth] Created user: {user.email} (id={user.pk}, admin={is_admin}, superuser={is_superuser})")
 
         # Store OIDC ID
-        oidc_profile = OIDCUserProfile.objects.create(
-            user=user,
-            oidc_id=claims.get("sub"),
-            provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
-        )
-        
-        logger.warning(f"[OIDC Auth] Created OIDC profile for user {user.email} with sub={claims.get('sub')}")
+        try:
+            oidc_profile = OIDCUserProfile.objects.create(
+                user=user,
+                oidc_id=claims.get("sub"),
+                provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
+            )
+            logger.warning(f"[OIDC Auth] Created OIDC profile for user {user.email} with sub={claims.get('sub')}")
+        except Exception as e:
+            logger.error(f"[OIDC Auth] Failed to create OIDC profile for user {user.email}: {e}")
+            # Check if profile already exists and update it
+            try:
+                existing_profile = user.oidc_profile
+                existing_profile.oidc_id = claims.get("sub")
+                existing_profile.provider = getattr(settings, "OIDC_PROVIDER_NAME", "oidc")
+                existing_profile.save()
+                logger.warning(f"[OIDC Auth] Updated existing OIDC profile for user {user.email}")
+            except OIDCUserProfile.DoesNotExist:
+                logger.error(f"[OIDC Auth] Could not create or update OIDC profile for user {user.email}")
+                # This is a critical error - user was created but profile couldn't be linked
+                raise
 
         return user
 
@@ -244,11 +257,24 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
                     # Link existing account to OIDC
                     user = users.first()
                     logger.info(f"[OIDC Auth] Linking existing user {user.email} to OIDC")
-                    OIDCUserProfile.objects.create(
-                        user=user,
-                        oidc_id=oidc_id,
-                        provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
-                    )
+                    
+                    # Check if user already has an OIDC profile
+                    try:
+                        existing_profile = user.oidc_profile
+                        # Update existing profile with new OIDC ID
+                        logger.info(f"[OIDC Auth] Updating existing OIDC profile for {user.email}: {existing_profile.oidc_id} → {oidc_id}")
+                        existing_profile.oidc_id = oidc_id
+                        existing_profile.provider = getattr(settings, "OIDC_PROVIDER_NAME", "oidc")
+                        existing_profile.save()
+                    except OIDCUserProfile.DoesNotExist:
+                        # Create new profile for user
+                        logger.info(f"[OIDC Auth] Creating new OIDC profile for {user.email}")
+                        OIDCUserProfile.objects.create(
+                            user=user,
+                            oidc_id=oidc_id,
+                            provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
+                        )
+                    
                     return User.objects.filter(pk=user.pk)
 
             logger.info("[OIDC Auth] No existing user found, will create new user")

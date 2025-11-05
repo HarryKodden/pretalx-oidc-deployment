@@ -40,3 +40,4 @@ logs/
 .env
 DEPLOYMENT_README.md
 Caddyfile
+docker-compose.yml
