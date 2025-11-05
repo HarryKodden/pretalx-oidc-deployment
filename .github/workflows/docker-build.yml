@@ -147,8 +147,8 @@ jobs:
           [database]
           backend = postgresql
           name = pretalx
-          user = pretalx
-          password = pretalx
+          user = pretalxuser
+          password = pretalxpassword
           host = postgres
           port = 5432
           
@@ -158,10 +158,11 @@ jobs:
           
           [oidc]
           # Test configuration with manual endpoints (no discovery)
+          # IMPORTANT: Do not set op_discovery_endpoint to avoid external calls
           hide_password_form = false
-          rp_client_id = test-client-id
-          rp_client_secret = test-client-secret
-          provider_name = Test OIDC Provider
+          rp_client_id = test-client-id-from-ci
+          rp_client_secret = test-client-secret-from-ci
+          provider_name = CI Test OIDC Provider
           
           # Manual endpoints - these won't be called during startup
           op_authorization_endpoint = http://test-oidc/auth
@@ -187,7 +188,7 @@ jobs:
           language_code = en
           EOF
           
-          echo "Test configuration created with OIDC manual endpoints:"
+          echo "Test configuration created as pretalx.cfg (used by docker-compose):"
           cat pretalx.cfg
 
       - name: Start services
@@ -197,6 +198,14 @@ jobs:
 
       - name: Build and start pretalx
         run: |
+          # Show what config files we have before starting
+          echo "=== Configuration files in workspace ==="
+          ls -la *.cfg || echo "No .cfg files found"
+          echo "=== Contents of pretalx.cfg ==="
+          cat pretalx.cfg
+          echo "=== Docker-compose volume mount check ==="
+          grep -A5 -B5 "pretalx.cfg" docker-compose.yml
+          
           docker compose build pretalx
           docker compose up -d pretalx
           sleep 20  # Wait for pretalx to initialize
@@ -204,6 +213,13 @@ jobs:
       - name: Check services are running
         run: |
           docker compose ps
+          
+          # Check what config file the container is using
+          echo "=== Container config file check ==="
+          docker compose exec pretalx ls -la /etc/pretalx/ || echo "Could not list /etc/pretalx/"
+          docker compose exec pretalx cat /etc/pretalx/pretalx.cfg || echo "Could not read config file"
+          
+          echo "=== Recent pretalx logs ==="
           docker compose logs pretalx | tail -50
 
       - name: Verify pretalx starts without errors
