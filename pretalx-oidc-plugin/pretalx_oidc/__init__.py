@@ -26,4 +26,5 @@ class PretalxOIDCPlugin(AppConfig):
 
         # Configure OIDC settings from pretalx.cfg
         from .config import configure_oidc_settings
+
         configure_oidc_settings()

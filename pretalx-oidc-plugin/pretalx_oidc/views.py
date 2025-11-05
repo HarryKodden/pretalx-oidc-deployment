@@ -2,9 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from django.conf import settings
-from django.contrib.auth import login
-from django.http import HttpResponseRedirect
+
 from django.urls import reverse
 from mozilla_django_oidc.views import (
     OIDCAuthenticationCallbackView,
@@ -32,7 +30,7 @@ class PretalxOIDCAuthenticationCallbackView(OIDCAuthenticationCallbackView):
     def success_url(self):
         """Return the URL to redirect to after successful authentication."""
         logger.warning(f"[OIDC View] success_url property called! User: {self.user}")
-        
+
         # Get the stored next URL
         next_url = self.request.session.pop("oidc_login_next", None)
 
