@@ -4,7 +4,9 @@
 import logging
 
 from django.conf import settings
+from django.urls import reverse
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
+from mozilla_django_oidc.utils import absolutify
 from pretalx.person.models import User
 
 from .models import OIDCUserProfile
@@ -342,27 +344,89 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             return User.objects.none()
 
     def authenticate(self, request, **kwargs):
-        """Override to handle pretalx-specific authentication."""
+        """Override to handle pretalx-specific authentication and HTTPS redirect URI enforcement."""
         logger.info(f"[OIDC Auth] authenticate() called with kwargs: {kwargs.keys()}")
 
-        user = super().authenticate(request, **kwargs)
+        # First, store the original request
+        self.request = request
+        if not self.request:
+            return None
 
-        if user:
-            logger.warning(
-                f"[OIDC Auth] Authentication successful for user: {user.email}"
-            )
-            logger.warning(f"[OIDC Auth]   - user.pk = {user.pk}")
-            logger.warning(f"[OIDC Auth]   - user.is_active = {user.is_active}")
-            logger.warning(
-                f"[OIDC Auth]   - user.is_authenticated = {user.is_authenticated}"
-            )
-            if request:
-                # Log the authentication
-                user.log_action(
-                    "pretalx.user.oidc.login",
-                    data={"provider": getattr(settings, "OIDC_PROVIDER_NAME", "oidc")},
-                )
-        else:
-            logger.warning("[OIDC Auth] Authentication failed - no user returned")
+        state = self.request.GET.get("state")
+        code = self.request.GET.get("code")
+        nonce = kwargs.pop("nonce", None)
+        code_verifier = kwargs.pop("code_verifier", None)
 
-        return user
+        if not code or not state:
+            return None
+
+        # Get the reverse URL for callback
+        reverse_url = self.get_settings(
+            "OIDC_AUTHENTICATION_CALLBACK_URL", "oidc_authentication_callback"
+        )
+
+        # Generate redirect URI
+        redirect_uri = absolutify(self.request, reverse(reverse_url))
+
+        # Check if HTTPS redirect enforcement is enabled and fix the redirect URI
+        force_https = getattr(settings, "OIDC_FORCE_HTTPS_REDIRECT", False)
+        if force_https and redirect_uri.startswith("http://"):
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
+            logger.info("[OIDC Auth] Enforced HTTPS redirect URI for token exchange")
+
+        # Build token payload with corrected redirect URI
+        token_payload = {
+            "client_id": self.OIDC_RP_CLIENT_ID,
+            "client_secret": self.OIDC_RP_CLIENT_SECRET,
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }
+
+        # Send code_verifier with token request if using PKCE
+        if code_verifier is not None:
+            token_payload.update({"code_verifier": code_verifier})
+
+        # Get the token
+        token_info = self.get_token(token_payload)
+        id_token = token_info.get("id_token")
+        access_token = token_info.get("access_token")
+
+        # Validate the token
+        payload = self.verify_token(id_token, nonce=nonce)
+
+        if payload:
+            self.store_tokens(access_token, id_token)
+            try:
+                user = self.get_or_create_user(access_token, id_token, payload)
+
+                if user:
+                    logger.warning(
+                        f"[OIDC Auth] Authentication successful for user: {user.email}"
+                    )
+                    logger.warning(f"[OIDC Auth]   - user.pk = {user.pk}")
+                    logger.warning(f"[OIDC Auth]   - user.is_active = {user.is_active}")
+                    logger.warning(
+                        f"[OIDC Auth]   - user.is_authenticated = {user.is_authenticated}"
+                    )
+                    if request:
+                        # Log the authentication
+                        user.log_action(
+                            "pretalx.user.oidc.login",
+                            data={
+                                "provider": getattr(
+                                    settings, "OIDC_PROVIDER_NAME", "oidc"
+                                )
+                            },
+                        )
+                else:
+                    logger.warning(
+                        "[OIDC Auth] Authentication failed - no user returned"
+                    )
+
+                return user
+            except Exception as exc:
+                logger.warning("failed to get or create user: %s", exc)
+                return None
+
+        return None
