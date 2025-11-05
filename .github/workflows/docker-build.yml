@@ -66,6 +66,28 @@ jobs:
         run: |
           docker run --rm pretalx-oidc:test pip list | grep pretalx-oidc || exit 1
 
+      - name: Test plugin import
+        run: |
+          echo "Testing OIDC plugin import..."
+          docker run --rm pretalx-oidc:test python -c "
+          import sys
+          sys.path.append('/app')
+          try:
+              import pretalx_oidc
+              print('✓ pretalx_oidc module imports successfully')
+              
+              from pretalx_oidc.auth import PretalxOIDCBackend
+              print('✓ PretalxOIDCBackend imports successfully')
+              
+              from pretalx_oidc.config import configure_oidc_settings
+              print('✓ configure_oidc_settings imports successfully')
+              
+              print('✓ All OIDC plugin components import successfully')
+          except ImportError as e:
+              print(f'✗ Failed to import OIDC plugin: {e}')
+              sys.exit(1)
+          "
+
       - name: Check for security vulnerabilities (Trivy scan)
         uses: aquasecurity/trivy-action@master
         with:
@@ -113,10 +135,60 @@ jobs:
 
       - name: Create test configuration
         run: |
-          cp pretalx.cfg.example pretalx.cfg
-          # Modify for testing (use example values)
-          sed -i 's|url = .*|url = http://localhost:8000|' pretalx.cfg
-          sed -i 's|op_discovery_endpoint = .*|op_discovery_endpoint = https://example.com|' pretalx.cfg
+          # Create a test configuration with OIDC using manual endpoints
+          # This avoids discovery calls during startup but still tests plugin loading
+          cat > pretalx.cfg << 'EOF'
+          [site]
+          url = http://localhost:8000
+          media_url = http://localhost:8000/media/
+          static_url = http://localhost:8000/static/
+          debug = true
+          
+          [database]
+          backend = postgresql
+          name = pretalx
+          user = pretalx
+          password = pretalx
+          host = postgres
+          port = 5432
+          
+          [authentication]
+          # Include OIDC backend to test plugin loading
+          additional_auth_backends = pretalx_oidc.auth.PretalxOIDCBackend
+          
+          [oidc]
+          # Test configuration with manual endpoints (no discovery)
+          hide_password_form = false
+          rp_client_id = test-client-id
+          rp_client_secret = test-client-secret
+          provider_name = Test OIDC Provider
+          
+          # Manual endpoints - these won't be called during startup
+          op_authorization_endpoint = http://test-oidc/auth
+          op_token_endpoint = http://test-oidc/token
+          op_user_endpoint = http://test-oidc/userinfo
+          op_jwks_endpoint = http://test-oidc/certs
+          
+          # Other settings
+          rp_sign_algo = RS256
+          rp_scopes = openid email profile
+          create_user = true
+          use_nonce = true
+          
+          [mail]
+          from = test@example.com
+          host = mailhog
+          port = 1025
+          tls = false
+          ssl = false
+          
+          [locale]
+          time_zone = UTC
+          language_code = en
+          EOF
+          
+          echo "Test configuration created with OIDC manual endpoints:"
+          cat pretalx.cfg
 
       - name: Start services
         run: |
@@ -139,12 +211,25 @@ jobs:
           # Check if pretalx container is running
           docker compose ps pretalx | grep "Up" || exit 1
           
-          # Check logs for critical errors
-          if docker compose logs pretalx | grep -i "critical\|error.*failed"; then
-            echo "Found critical errors in logs"
+          # Check logs for successful OIDC plugin loading
+          echo "Checking for OIDC plugin initialization..."
+          if docker compose logs pretalx | grep -q "\[OIDC.*Configuration complete"; then
+            echo "✓ OIDC plugin loaded and configured successfully"
+          else
+            echo "⚠ OIDC plugin configuration not found in logs"
+          fi
+          
+          # Check logs for critical errors (but allow warnings)
+          if docker compose logs pretalx | grep -i "critical\|error.*failed\|exception.*failed"; then
+            echo "Found critical errors in logs:"
+            docker compose logs pretalx | grep -i "critical\|error.*failed\|exception.*failed"
+            echo ""
+            echo "Full logs:"
             docker compose logs pretalx
             exit 1
           fi
+          
+          echo "✓ Pretalx started successfully without critical errors"
 
       - name: Cleanup
         if: always()
