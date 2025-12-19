@@ -9,7 +9,6 @@ pretalx.cfg
 
 # Python
 __pycache__/
-*.py[cod]
 *$py.class
 *.so
 .Python
@@ -52,3 +51,5 @@ coverage.xml
 *.tmp
 *.temp
 .backup/
+
+Caddyfile

@@ -222,11 +222,16 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
 
         # Store OIDC ID
         try:
+<<<<<<< HEAD
             OIDCUserProfile.objects.create(  # noqa: F841
+=======
+            oidc_profile = OIDCUserProfile.objects.create(
+>>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                 user=user,
                 oidc_id=claims.get("sub"),
                 provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
             )
+<<<<<<< HEAD
             logger.warning(
                 f"[OIDC Auth] Created OIDC profile for user {user.email} with sub={claims.get('sub')}"
             )
@@ -234,10 +239,16 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             logger.error(
                 f"[OIDC Auth] Failed to create OIDC profile for user {user.email}: {e}"
             )
+=======
+            logger.warning(f"[OIDC Auth] Created OIDC profile for user {user.email} with sub={claims.get('sub')}")
+        except Exception as e:
+            logger.error(f"[OIDC Auth] Failed to create OIDC profile for user {user.email}: {e}")
+>>>>>>> cc2447f (add patche_.*.py and Dockerfile)
             # Check if profile already exists and update it
             try:
                 existing_profile = user.oidc_profile
                 existing_profile.oidc_id = claims.get("sub")
+<<<<<<< HEAD
                 existing_profile.provider = getattr(
                     settings, "OIDC_PROVIDER_NAME", "oidc"
                 )
@@ -249,6 +260,13 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
                 logger.error(
                     f"[OIDC Auth] Could not create or update OIDC profile for user {user.email}"
                 )
+=======
+                existing_profile.provider = getattr(settings, "OIDC_PROVIDER_NAME", "oidc")
+                existing_profile.save()
+                logger.warning(f"[OIDC Auth] Updated existing OIDC profile for user {user.email}")
+            except OIDCUserProfile.DoesNotExist:
+                logger.error(f"[OIDC Auth] Could not create or update OIDC profile for user {user.email}")
+>>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                 # This is a critical error - user was created but profile couldn't be linked
                 raise
 
@@ -308,14 +326,20 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
                 if users.exists():
                     # Link existing account to OIDC
                     user = users.first()
+<<<<<<< HEAD
                     logger.info(
                         f"[OIDC Auth] Linking existing user {user.email} to OIDC"
                     )
 
+=======
+                    logger.info(f"[OIDC Auth] Linking existing user {user.email} to OIDC")
+                    
+>>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                     # Check if user already has an OIDC profile
                     try:
                         existing_profile = user.oidc_profile
                         # Update existing profile with new OIDC ID
+<<<<<<< HEAD
                         logger.info(
                             (
                                 f"[OIDC Auth] Updating existing OIDC profile for "
@@ -332,12 +356,25 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
                         logger.info(
                             f"[OIDC Auth] Creating new OIDC profile for {user.email}"
                         )
+=======
+                        logger.info(f"[OIDC Auth] Updating existing OIDC profile for {user.email}: {existing_profile.oidc_id} → {oidc_id}")
+                        existing_profile.oidc_id = oidc_id
+                        existing_profile.provider = getattr(settings, "OIDC_PROVIDER_NAME", "oidc")
+                        existing_profile.save()
+                    except OIDCUserProfile.DoesNotExist:
+                        # Create new profile for user
+                        logger.info(f"[OIDC Auth] Creating new OIDC profile for {user.email}")
+>>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                         OIDCUserProfile.objects.create(
                             user=user,
                             oidc_id=oidc_id,
                             provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
                         )
+<<<<<<< HEAD
 
+=======
+                    
+>>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                     return User.objects.filter(pk=user.pk)
 
             logger.info("[OIDC Auth] No existing user found, will create new user")
