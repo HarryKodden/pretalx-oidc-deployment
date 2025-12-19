@@ -326,20 +326,14 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
                 if users.exists():
                     # Link existing account to OIDC
                     user = users.first()
-<<<<<<< HEAD
                     logger.info(
                         f"[OIDC Auth] Linking existing user {user.email} to OIDC"
                     )
 
-=======
-                    logger.info(f"[OIDC Auth] Linking existing user {user.email} to OIDC")
-                    
->>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                     # Check if user already has an OIDC profile
                     try:
                         existing_profile = user.oidc_profile
                         # Update existing profile with new OIDC ID
-<<<<<<< HEAD
                         logger.info(
                             (
                                 f"[OIDC Auth] Updating existing OIDC profile for "
@@ -356,25 +350,11 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
                         logger.info(
                             f"[OIDC Auth] Creating new OIDC profile for {user.email}"
                         )
-=======
-                        logger.info(f"[OIDC Auth] Updating existing OIDC profile for {user.email}: {existing_profile.oidc_id} → {oidc_id}")
-                        existing_profile.oidc_id = oidc_id
-                        existing_profile.provider = getattr(settings, "OIDC_PROVIDER_NAME", "oidc")
-                        existing_profile.save()
-                    except OIDCUserProfile.DoesNotExist:
-                        # Create new profile for user
-                        logger.info(f"[OIDC Auth] Creating new OIDC profile for {user.email}")
->>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                         OIDCUserProfile.objects.create(
                             user=user,
                             oidc_id=oidc_id,
                             provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
                         )
-<<<<<<< HEAD
-
-=======
-                    
->>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                     return User.objects.filter(pk=user.pk)
 
             logger.info("[OIDC Auth] No existing user found, will create new user")
