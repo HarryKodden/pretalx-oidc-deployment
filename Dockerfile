@@ -1,4 +1,4 @@
-FROM python:3.10-bookworm
+FROM python:3.12-bookworm
 
 
 RUN apt-get update && \
@@ -20,7 +20,7 @@ RUN apt-get update && \
 ENV LC_ALL=C.UTF-8
 
 RUN pip install -U pip setuptools wheel
-RUN pip install redis mozilla-django-oidc
+RUN pip install redis mozilla-django-oidc "psycopg[binary]"
 
 # Clone pretalx from GitHub
 RUN git clone https://github.com/pretalx/pretalx.git /pretalx

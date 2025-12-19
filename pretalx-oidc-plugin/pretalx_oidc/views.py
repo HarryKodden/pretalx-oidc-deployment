@@ -45,40 +45,6 @@ class PretalxOIDCAuthenticationRequestView(OIDCAuthenticationRequestView):
 class PretalxOIDCAuthenticationCallbackView(OIDCAuthenticationCallbackView):
     """Custom OIDC callback view for pretalx."""
 
-    def get(self, request):
-        """Override get method to add session debugging."""
-        logger.info("[OIDC] Callback received")
-        logger.info(f"[OIDC] Session key: {request.session.session_key}")
-        logger.info(
-            f"[OIDC] Has oidc_states in session: {'oidc_states' in request.session}"
-        )
-
-        if "oidc_states" in request.session:
-            logger.info(
-                f"[OIDC] Number of stored states: {len(request.session['oidc_states'])}"
-            )
-
-        # Get the state parameter from the request
-        state = request.GET.get("state")
-        logger.info(f"[OIDC] Received state parameter: {state}")
-
-        return super().get(request)
-
-    def get_redirect_uri(self, request):
-        """Override to ensure HTTPS redirect URI for token exchange."""
-        # Get the original redirect URI
-        redirect_uri = super().get_redirect_uri(request)
-
-        # Check if HTTPS redirect enforcement is enabled
-        force_https = getattr(settings, "OIDC_FORCE_HTTPS_REDIRECT", False)
-
-        if force_https and redirect_uri.startswith("http://"):
-            # Convert HTTP to HTTPS
-            redirect_uri = redirect_uri.replace("http://", "https://", 1)
-            logger.info("[OIDC] Enforced HTTPS redirect URI for token exchange")
-
-        return redirect_uri
-
     @property
     def success_url(self):
         """Return the URL to redirect to after successful authentication."""

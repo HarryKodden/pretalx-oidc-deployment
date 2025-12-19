@@ -6,7 +6,6 @@ services:
     container_name: pretalx-oidc
     volumes:
       - ./pretalx.cfg:/etc/pretalx/pretalx.cfg:ro
-#     - ./ci.cfg:/etc/pretalx/pretalx.cfg:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -16,8 +15,8 @@ services:
         condition: service_healthy
     networks:
       - pretalx-network
-    ports:
-      - "8000:8000"
+    # ports:
+    #   - "8000:8000"
     command: >
       sh -c "
       python manage.py migrate &&
