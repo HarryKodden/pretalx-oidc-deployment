@@ -222,16 +222,11 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
 
         # Store OIDC ID
         try:
-<<<<<<< HEAD
-            OIDCUserProfile.objects.create(  # noqa: F841
-=======
-            oidc_profile = OIDCUserProfile.objects.create(
->>>>>>> cc2447f (add patche_.*.py and Dockerfile)
+            OIDCUserProfile.objects.create(
                 user=user,
                 oidc_id=claims.get("sub"),
                 provider=getattr(settings, "OIDC_PROVIDER_NAME", "oidc"),
             )
-<<<<<<< HEAD
             logger.warning(
                 f"[OIDC Auth] Created OIDC profile for user {user.email} with sub={claims.get('sub')}"
             )
@@ -239,16 +234,10 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
             logger.error(
                 f"[OIDC Auth] Failed to create OIDC profile for user {user.email}: {e}"
             )
-=======
-            logger.warning(f"[OIDC Auth] Created OIDC profile for user {user.email} with sub={claims.get('sub')}")
-        except Exception as e:
-            logger.error(f"[OIDC Auth] Failed to create OIDC profile for user {user.email}: {e}")
->>>>>>> cc2447f (add patche_.*.py and Dockerfile)
             # Check if profile already exists and update it
             try:
                 existing_profile = user.oidc_profile
                 existing_profile.oidc_id = claims.get("sub")
-<<<<<<< HEAD
                 existing_profile.provider = getattr(
                     settings, "OIDC_PROVIDER_NAME", "oidc"
                 )
@@ -260,13 +249,6 @@ class PretalxOIDCBackend(OIDCAuthenticationBackend):
                 logger.error(
                     f"[OIDC Auth] Could not create or update OIDC profile for user {user.email}"
                 )
-=======
-                existing_profile.provider = getattr(settings, "OIDC_PROVIDER_NAME", "oidc")
-                existing_profile.save()
-                logger.warning(f"[OIDC Auth] Updated existing OIDC profile for user {user.email}")
-            except OIDCUserProfile.DoesNotExist:
-                logger.error(f"[OIDC Auth] Could not create or update OIDC profile for user {user.email}")
->>>>>>> cc2447f (add patche_.*.py and Dockerfile)
                 # This is a critical error - user was created but profile couldn't be linked
                 raise
 

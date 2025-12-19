@@ -736,6 +736,18 @@ Runs linting and code quality checks:
 3. **flake8** - Python linting and style checks
 4. **Config validation** - Validates INI configuration files
 
+To run the same checks locally before pushing:
+
+1. `python3 -m venv .venv-lint && source .venv-lint/bin/activate`
+2. `python -m pip install --upgrade pip`
+3. `pip install black isort flake8`
+4. `black --check --diff pretalx-oidc-plugin/pretalx_oidc/`
+5. `isort --check-only --diff --profile black pretalx-oidc-plugin/pretalx_oidc/`
+6. `flake8 pretalx-oidc-plugin/pretalx_oidc/ --count --select=E9,F63,F7,F82 --show-source --statistics`
+7. `flake8 pretalx-oidc-plugin/pretalx_oidc/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics`
+8. `python -c "import configparser; c = configparser.ConfigParser(); c.read('pretalx.cfg.example')"`
+9. `deactivate`
+
 ### Using Pre-Built Images
 
 Instead of building locally, you can use pre-built images from GHCR:
