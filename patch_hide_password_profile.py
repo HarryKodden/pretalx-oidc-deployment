@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Patch the user profile template to hide password change section when OIDC is enabled.
+
 """
 
 import re

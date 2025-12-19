@@ -2,6 +2,7 @@
 """
 Patch pretalx settings.py to support custom AppConfig classes in plugins.
 This is required for Django 3.2+ which removed default_app_config support.
+
 """
 
 import re

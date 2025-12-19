@@ -2,6 +2,7 @@
 """
 Patch Django settings to add CSRF_TRUSTED_ORIGINS from site URL.
 This is needed for logout and other POST requests to work with HTTPS.
+
 """
 
 import re

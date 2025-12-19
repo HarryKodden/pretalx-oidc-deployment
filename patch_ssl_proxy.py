@@ -2,6 +2,7 @@
 """
 Patch Django settings to add SSL proxy awareness settings.
 This ensures Django recognizes HTTPS when behind a reverse proxy.
+
 """
 
 import re

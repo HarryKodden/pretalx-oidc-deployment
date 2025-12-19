@@ -5,8 +5,8 @@ Patch pretalx to hide username/password authentication when OIDC is the only bac
 This modifies the auth.html template to check if OIDC is configured as the only
 authentication backend, and if so, automatically hides the password login and
 registration forms, leaving only the OIDC button visible.
-"""
 
+"""
 import sys
 
 

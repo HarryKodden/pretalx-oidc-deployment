@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Patch the organizer user settings template to hide password change section when OIDC is enabled.
+
 """
 
 import re
