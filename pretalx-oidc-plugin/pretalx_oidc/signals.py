@@ -138,15 +138,13 @@ def add_oidc_login_button(sender, request, next_url=None, **kwargs):
             html_parts.append(PASSWORD_HIDE_CSS)
 
         # Add OIDC button with unique ID
-        html_parts.append(
-            f"""
+        html_parts.append(f"""
     <div class="auth-form-block w-100" id="oidc-login-only">
         <a class="btn btn-lg btn-primary btn-block" href="{login_url}">
             <i class="fa fa-sign-in"></i> {button_text}
         </a>
     </div>
-    """
-        )
+    """)
 
         result = "\n".join(html_parts)
         logger.info(

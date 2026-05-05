@@ -4,6 +4,7 @@
 """
 Context processor to provide OIDC authentication status to templates.
 """
+
 from django.conf import settings
 
 
