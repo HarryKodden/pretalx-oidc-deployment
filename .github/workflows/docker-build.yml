@@ -114,9 +114,8 @@ jobs:
               print('✓ config module functions import successfully')
               
               # Test that the package is installed correctly
-              import pkg_resources
-              dist = pkg_resources.get_distribution('pretalx-oidc')
-              print(f'✓ pretalx-oidc package version: {dist.version}')
+              from importlib.metadata import version
+              print(f"✓ pretalx-oidc package version: {version('pretalx-oidc')}")
               
               print('✓ Basic OIDC plugin components import successfully')
               print('✓ Full Django integration will be tested during container startup')
