@@ -9,8 +9,13 @@ import re
 template_path = "/pretalx/src/pretalx/orga/templates/orga/user.html"
 
 # Read the template
-with open(template_path, 'r') as f:
-    content = f.read()
+try:
+    with open(template_path, 'r') as f:
+        content = f.read()
+except FileNotFoundError:
+    print(f"⚠ Template not found: {template_path} – may have moved in this pretalx version.")
+    print("  CSS-based hiding via the OIDC plugin signals will be used instead.")
+    exit(0)
 
 # Find the "Login settings" fieldset and wrap it in an if statement
 old_section = '''    <fieldset class="m-2 password-input-form">
@@ -29,8 +34,9 @@ if old_section in content:
     content = content.replace(old_section, new_section)
     print("✓ Wrapped login settings section in conditional")
 else:
-    print("✗ Could not find login settings section to patch")
-    exit(1)
+    print("⚠ Could not find login settings section to patch – template may have moved.")
+    print("  CSS-based hiding via the OIDC plugin signals will be used instead.")
+    exit(0)
 
 # Write the patched template
 with open(template_path, 'w') as f:

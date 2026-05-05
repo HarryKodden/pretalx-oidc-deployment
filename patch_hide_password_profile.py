@@ -9,8 +9,13 @@ import re
 template_path = "/pretalx/src/pretalx/cfp/templates/cfp/event/user_profile.html"
 
 # Read the template
-with open(template_path, 'r') as f:
-    content = f.read()
+try:
+    with open(template_path, 'r') as f:
+        content = f.read()
+except FileNotFoundError:
+    print(f"⚠ Template not found: {template_path} – may have moved in this pretalx version.")
+    print("  CSS-based hiding via the OIDC plugin signals will be used instead.")
+    exit(0)
 
 # Find the "Your Account" section and wrap it in an if statement
 # The section starts with <h2>{% translate "Your Account" %}</h2>
@@ -58,8 +63,9 @@ if old_section in content:
     content = content.replace(old_section, new_section)
     print("✓ Wrapped password change section in conditional")
 else:
-    print("✗ Could not find password change section to patch")
-    exit(1)
+    print("⚠ Could not find password change section to patch – template may have moved.")
+    print("  CSS-based hiding via the OIDC plugin signals will be used instead.")
+    exit(0)
 
 # Write the patched template
 with open(template_path, 'w') as f:

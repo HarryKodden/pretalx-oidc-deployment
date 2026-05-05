@@ -3,7 +3,7 @@
 [![Docker Build](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/docker-build.yml/badge.svg)](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/docker-build.yml)
 [![Lint](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/lint.yml/badge.svg)](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/lint.yml)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Pretalx](https://img.shields.io/badge/Pretalx-v2025.2.0-orange)](https://pretalx.com)
@@ -427,7 +427,7 @@ This deployment uses a **clean plugin-based architecture** following pretalx bes
    - Configuration via standard `pretalx.cfg`
 
 2. **Docker Setup**
-   - **pretalx**: Main application container (Python 3.10)
+   - **pretalx**: Main application container (Python 3.12+)
    - **postgres**: PostgreSQL 14 database
    - **redis**: Cache and session storage
    - **mailhog**: Development email testing (SMTP server + web UI)
@@ -815,7 +815,7 @@ This project builds upon:
 Currently deployed and tested with:
 - Keycloak 24+
 - PostgreSQL 14
-- Python 3.10
+- Python 3.12+
 - Pretalx v2025.2.0.dev0
 
 Tested OIDC providers:

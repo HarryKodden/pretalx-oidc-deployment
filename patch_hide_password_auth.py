@@ -78,8 +78,10 @@ def patch_auth_template():
 
 def main():
     """Main function."""
-    success = patch_auth_template()
-    sys.exit(0 if success else 1)
+    patch_auth_template()
+    # Always exit 0: if the template is not found, CSS-based hiding (via signals)
+    # still provides the OIDC-only experience without template patching.
+    sys.exit(0)
 
 
 if __name__ == '__main__':

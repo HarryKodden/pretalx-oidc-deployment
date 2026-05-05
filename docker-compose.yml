@@ -15,8 +15,8 @@ services:
         condition: service_healthy
     networks:
       - pretalx-network
-    # ports:
-    #   - "8000:8000"
+    ports:
+      - "8000:8000"
     command: >
       sh -c "
       python manage.py migrate &&
