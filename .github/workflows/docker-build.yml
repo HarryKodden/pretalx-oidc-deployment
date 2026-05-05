@@ -115,7 +115,8 @@ jobs:
               
               # Test that the package is installed correctly
               from importlib.metadata import version
-              print(f"✓ pretalx-oidc package version: {version('pretalx-oidc')}")
+              plugin_version = version('pretalx-oidc')
+              print('✓ pretalx-oidc package version: {}'.format(plugin_version))
               
               print('✓ Basic OIDC plugin components import successfully')
               print('✓ Full Django integration will be tested during container startup')
