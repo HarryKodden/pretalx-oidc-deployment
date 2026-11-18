@@ -19,7 +19,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12', '3.13']
+        # Current upstream pretalx requires Python >= 3.13
+        python-version: ['3.13']
 
     steps:
       - name: Checkout repository

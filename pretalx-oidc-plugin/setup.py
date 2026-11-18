@@ -27,7 +27,6 @@ setup(
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
     ],
 )

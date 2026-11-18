@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.12', '3.13']
+        # Align with upstream pretalx (Python >= 3.13)
+        python-version: ['3.13']
 
     steps:
       - name: Checkout repository
