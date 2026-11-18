@@ -30,7 +30,7 @@ jobs:
 
       - name: Build image with Python ${{ matrix.python-version }}
         run: |
-          sed "s|FROM python:3.12-bookworm|FROM python:${{ matrix.python-version }}-bookworm|" Dockerfile \
+          sed -E "s|FROM python:[0-9.]+-bookworm|FROM python:${{ matrix.python-version }}-bookworm|" Dockerfile \
             | docker build -f - -t pretalx-oidc:py${{ matrix.python-version }} .
 
       - name: Verify plugin installed (Python ${{ matrix.python-version }})
@@ -196,6 +196,10 @@ jobs:
           password = pretalxpassword
           host = postgres
           port = 5432
+
+          [redis]
+          location = redis://redis:6379/1
+          session = True
           
           [authentication]
           # Include OIDC backend to test plugin loading
@@ -253,7 +257,29 @@ jobs:
           
           docker compose build pretalx
           docker compose up -d pretalx
-          sleep 20  # Wait for pretalx to initialize
+
+          # migrate + frontend rebuild can take several minutes on a fresh image
+          echo "Waiting for pretalx to become ready..."
+          for i in $(seq 1 60); do
+            if docker compose ps pretalx --format '{{.Status}}' | grep -qE '^Up( |$)'; then
+              if docker compose logs pretalx 2>/dev/null | grep -q "Watching for file changes with StatReloader\|Starting development server"; then
+                echo "pretalx is up (attempt $i)"
+                break
+              fi
+            fi
+            if docker compose logs pretalx 2>/dev/null | grep -q "PostgreSQL .* or later is required\|Error 111 connecting to\|NotSupportedError"; then
+              echo "Fatal startup error detected early:"
+              docker compose logs pretalx | tail -80
+              exit 1
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "Timed out waiting for pretalx"
+              docker compose ps
+              docker compose logs pretalx | tail -100
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Check services are running
         run: |
@@ -269,8 +295,10 @@ jobs:
 
       - name: Verify pretalx starts without errors
         run: |
-          # Check if pretalx container is running
-          docker compose ps pretalx | grep "Up" || exit 1
+          # Require a running container (not Restarting)
+          status=$(docker compose ps pretalx --format '{{.Status}}')
+          echo "pretalx status: $status"
+          echo "$status" | grep -qE '^Up' || exit 1
           
           # Check logs for successful OIDC plugin loading
           echo "Checking for OIDC plugin initialization..."
@@ -281,9 +309,9 @@ jobs:
           fi
           
           # Check logs for critical errors (but allow warnings)
-          if docker compose logs pretalx | grep -i "critical\|error.*failed\|exception.*failed"; then
+          if docker compose logs pretalx | grep -iE "critical|error.*failed|exception.*failed|NotSupportedError"; then
             echo "Found critical errors in logs:"
-            docker compose logs pretalx | grep -i "critical\|error.*failed\|exception.*failed"
+            docker compose logs pretalx | grep -iE "critical|error.*failed|exception.*failed|NotSupportedError"
             echo ""
             echo "Full logs:"
             docker compose logs pretalx

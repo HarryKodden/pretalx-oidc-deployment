@@ -55,7 +55,7 @@ services:
       retries: 5 
 
   postgres:
-    image: postgres:14-alpine
+    image: postgres:16-alpine
     container_name: pretalx-postgres
     environment:
       POSTGRES_DB: pretalx
