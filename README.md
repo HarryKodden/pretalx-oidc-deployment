@@ -3,10 +3,10 @@
 [![Docker Build](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/docker-build.yml/badge.svg)](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/docker-build.yml)
 [![Lint](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/lint.yml/badge.svg)](https://github.com/HarryKodden/pretalx-oidc-deployment/actions/workflows/lint.yml)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Pretalx](https://img.shields.io/badge/Pretalx-v2025.2.0-orange)](https://pretalx.com)
+[![Pretalx](https://img.shields.io/badge/Pretalx-latest-orange)](https://pretalx.com)
 [![OIDC](https://img.shields.io/badge/OIDC-Enabled-green)](https://openid.net/connect/)
 
 ---
@@ -28,18 +28,19 @@ A complete Docker-based deployment for [pretalx](https://pretalx.com) with OpenI
 - Admin and superuser role assignment via OIDC claims
 - Automatic privilege synchronization on every login
 - Per-event plugin enablement for granular control
+- OIDC login `next` URL is URL-encoded and HTML-escaped (reflected XSS hardened)
 
 🎨 **Clean User Experience**
 - Login pages show only OIDC button
 - Password forms hidden on login, registration, and profile pages
-- CSS-based form hiding (no template patching required)
+- CSS injection via Django signals, plus optional Dockerfile template patches
 - Seamless integration with pretalx's existing UI
 
 🏗️ **Architecture**
-- Native pretalx plugin using Django signals
-- No core pretalx modifications required
+- Native pretalx plugin using Django signals (`mozilla-django-oidc`)
+- Image builds from current upstream pretalx (`git clone` of `pretalx/pretalx`)
 - Configuration via `pretalx.cfg` (standard pretalx config file)
-- Docker Compose setup with PostgreSQL, Redis, and MailHog
+- Docker Compose: Python 3.13, Node 22, PostgreSQL 16, Redis, MailHog
 
 ## Table of Contents
 
@@ -61,21 +62,14 @@ A complete Docker-based deployment for [pretalx](https://pretalx.com) with OpenI
 
 This deployment makes several important architectural choices:
 
-1. **CSS-based Form Hiding**: Password forms are hidden via injected CSS rather than template modifications. This approach:
-   - Survives pretalx updates (no template patching needed)
-   - Can be toggled via configuration (`hide_password_form`)
-   - Uses Django signals for clean integration
+1. **CSS-based Form Hiding (primary)**: Password forms are hidden via CSS injected through Django signals (`hide_password_form`). The Docker image also applies a few optional template/settings patches for CSRF trusted origins, SSL proxy awareness, and password UI cleanup when templates drift.
 
 2. **Per-Event Plugin Enablement**: The plugin must be manually enabled for each event. This is by design because:
    - Pretalx doesn't provide signals for event creation
    - Gives organizers control over which events use OIDC
    - Follows pretalx's plugin architecture patterns
 
-3. **No Core Modifications**: The entire OIDC integration is achieved through:
-   - A standard pretalx plugin installed via pip
-   - Django signal receivers for UI injection
-   - Standard `pretalx.cfg` configuration
-   - Zero changes to pretalx core code
+3. **Plugin + thin image patches**: OIDC auth is a standard pretalx plugin. The Dockerfile clones upstream pretalx and applies small patches where signals alone are not enough (settings / a few templates).
 
 4. **Automatic Privilege Sync**: User privileges (admin/superuser) sync on every OIDC login:
    - No manual sync commands needed
@@ -114,11 +108,15 @@ docker compose build
 docker compose up -d
 ```
 
+Local Compose publishes pretalx on **host port 8080** (`8080:8000`). Set `[site] url` / `media_url` / `static_url` to `http://localhost:8080` (see `pretalx.cfg.example`).
+
+If port 8080 is busy, change the left-hand side of the mapping in `docker-compose.yml` and keep the URLs in sync.
+
 ### 4. Initialize database and access pretalx
 
-The first time you start the containers, the database will be automatically migrated and static files built.
+On first start the container runs `migrate`, `rebuild` (frontend needs Node 22 in the image), then `runserver`.
 
-Access pretalx at the URL configured in `pretalx.cfg` section `[site]` → `url`.
+Access pretalx at the URL in `pretalx.cfg` → `[site]` → `url` (default local: http://localhost:8080).
 
 ### 5. Enable the OIDC plugin for each event
 
@@ -144,7 +142,15 @@ Edit `pretalx.cfg`:
 ```ini
 [site]
 url = https://your-domain.com
-# For local development: url = http://localhost:8355
+# For local development with this Compose file:
+# url = http://localhost:8080
+# media_url = http://localhost:8080/media/
+# static_url = http://localhost:8080/static/
+# debug = false   # required if you want SMTP/MailHog delivery (see Email)
+
+[redis]
+location = redis://redis:6379/1
+session = True
 
 [oidc]
 # OIDC Provider auto-discovery URL
@@ -232,7 +238,6 @@ RequestHeader set X-Forwarded-For %{REMOTE_ADDR}s
 ```
 
 This ensures that pretalx generates correct HTTPS redirect URIs that match your OIDC provider's registered callback URLs.
-```
 
 ### Email Configuration
 
@@ -250,12 +255,14 @@ tls = false
 ssl = false
 ```
 
-**Access the mail frontend**: `https://mail.your-domain.com`
+**Access MailHog locally**: http://localhost:8025
 
 #### Development vs Production Email Behavior
 
-- **Development Mode** (`DEBUG=true`): pretalx uses console email backend by default, printing emails to logs instead of sending them. MailHog is available for manual SMTP testing.
-- **Production Mode** (`DEBUG=false`): pretalx automatically uses the SMTP settings from the `[mail]` section.
+Pretalx hard-codes the console email backend when `debug = true`, so messages go to container logs and **never** reach MailHog/SMTP.
+
+- **`debug = true`**: emails printed to `docker compose logs pretalx` (console backend)
+- **`debug = false`**: uses `[mail]` SMTP settings (point `host = mailhog` / `port = 1025` for local MailHog at http://localhost:8025)
 
 For production, configure with your SMTP provider (Gmail, SendGrid, AWS SES, etc.):
 
@@ -278,7 +285,7 @@ tls = true
 2. Set **Access Type** to `confidential`
 3. Add **Valid Redirect URIs**:
    - `https://your-domain.com/oidc/callback/`
-   - `http://localhost:8355/oidc/callback/` (for development)
+   - `http://localhost:8080/oidc/callback/` (for local Compose)
 4. Note the client secret from the Credentials tab
 5. Use the discovery URL: `https://keycloak-url/realms/your-realm`
 
@@ -422,15 +429,15 @@ This deployment uses a **clean plugin-based architecture** following pretalx bes
 
 1. **pretalx-oidc Plugin** (`pretalx-oidc-plugin/`)
    - Custom OIDC authentication backend extending `mozilla-django-oidc`
-   - Django signal receivers for injecting UI modifications
-   - No template patching - all UI changes via CSS injection
+   - Django signal receivers for OIDC button + CSS form hiding
+   - Safe rendering of the login `next` URL (`quote` + `format_html`)
    - Configuration via standard `pretalx.cfg`
 
 2. **Docker Setup**
-   - **pretalx**: Main application container (Python 3.12+)
-   - **postgres**: PostgreSQL 14 database
-   - **redis**: Cache and session storage
-   - **mailhog**: Development email testing (SMTP server + web UI)
+   - **pretalx**: App image (Python 3.13, Node 22, upstream pretalx + plugin); host port **8080** → container **8000**
+   - **postgres**: PostgreSQL 16
+   - **redis**: Cache and session storage (`redis://redis:6379/1` in `pretalx.cfg`)
+   - **mailhog**: Dev SMTP (`1025`) + web UI (`8025`); needs `debug = false` to receive mail
 
 ### Plugin Architecture
 
@@ -447,20 +454,20 @@ The `pretalx_oidc` plugin uses Django signals to integrate cleanly with pretalx:
 
 ### How Password Forms Are Hidden
 
-Instead of patching pretalx templates (which would break on updates), the plugin:
+Primary path (plugin signals):
 
-1. Reads `hide_password_form` configuration from `pretalx.cfg`
-2. Uses Django signals to inject CSS into page `<head>` tags
-3. CSS rules hide password-related form fields with `display: none !important`
-4. Works on login, registration, organizer, and profile pages
-5. No core pretalx files are modified
+1. Reads `hide_password_form` from `pretalx.cfg`
+2. Injects CSS via `auth_html` / `cfp_html_head` / `orga_html_head` / `html_above_profile_page`
+3. CSS hides password-related fields with `display: none !important`
+
+Secondary path (image build): Dockerfile runs small `patch_*.py` scripts against cloned pretalx for CSRF trusted origins, SSL proxy settings, and some password UI templates when signal/CSS coverage is incomplete.
 
 ### Why This Approach?
 
-✅ **Update-safe**: No template modifications, survives pretalx upgrades  
-✅ **Reversible**: Disable plugin or set `hide_password_form = false` to restore password auth  
-✅ **Standard**: Uses pretalx's official plugin system and signals  
-✅ **Clean**: No monkey-patching or core code modifications
+✅ **Plugin-first**: OIDC auth and UI hooks use pretalx's official plugin/signal APIs  
+✅ **Reversible**: Set `hide_password_form = false` (and disable plugin) to restore password auth  
+✅ **Pinned to upstream**: Image clones current `pretalx/pretalx`; rebuild after upstream changes  
+⚠️ **Patches may need refresh**: Template/settings patches can break when upstream moves files — CSS signals remain the preferred path
 
 ## Troubleshooting
 
@@ -534,6 +541,20 @@ Pretalx automatically handles this. If you still see CSRF errors:
 curl -I https://your-domain.com/oidc/init/
 # Location header should contain https://your-domain.com/oidc/callback/
 ```
+
+### Redis connection refused (`127.0.0.1:6379`)
+
+Compose Redis is the service hostname `redis`, not localhost inside the container.
+
+```ini
+[redis]
+location = redis://redis:6379/1
+session = True
+```
+
+### Mail never appears in MailHog
+
+Set `debug = false` in `[site]`. With `debug = true`, pretalx uses the console email backend and only logs messages.
 
 ### User not created on first login
 
@@ -629,14 +650,18 @@ docker compose up -d --build
 
 ```ini
 [site]
-url = https://your-domain.com              # Your actual domain
-debug = false                              # true for development
+url = https://your-domain.com              # Local Compose: http://localhost:8080
+debug = false                              # true → console email (no MailHog)
 
 # HTTPS proxy settings (required for production)
 trust_x_forwarded_proto = true
 trust_x_forwarded_for = true
 secure_proxy_ssl_header = true
 use_x_forwarded_host = true
+
+[redis]
+location = redis://redis:6379/1
+session = True
 
 [oidc]
 op_discovery_endpoint = https://provider/.well-known/openid-configuration
@@ -684,6 +709,8 @@ Edit `pretalx.cfg`:
 debug = true
 ```
 
+Note: `debug = true` also forces the console email backend (MailHog will not receive mail).
+
 Then check logs:
 ```bash
 docker compose logs -f pretalx
@@ -715,11 +742,12 @@ This project includes GitHub Actions workflows for continuous integration:
 
 Automatically runs on push and pull requests:
 
-1. **Builds the Docker image** - Verifies the image builds successfully
-2. **Tests plugin installation** - Ensures pretalx-oidc plugin is installed correctly
-3. **Security scanning** - Uses Trivy to scan for vulnerabilities
-4. **Integration tests** - Starts docker-compose stack and verifies services run
-5. **Publishes to GHCR** - Pushes images to GitHub Container Registry (on main branch)
+1. **Python compatibility** - Builds the image on Python **3.13** (upstream pretalx no longer supports 3.12)
+2. **Builds the Docker image** - Verifies the image builds successfully
+3. **Tests plugin installation** - Ensures pretalx-oidc plugin is installed correctly
+4. **Security scanning** - Uses Trivy to scan for vulnerabilities
+5. **Integration tests** - Starts Compose (Postgres 16, Redis, MailHog) and waits for pretalx to become ready
+6. **Publishes to GHCR** - Pushes images to GitHub Container Registry (on main branch)
 
 **Image tags published:**
 - `ghcr.io/harrykodden/pretalx-oidc-deployment:latest` - Latest main branch
@@ -787,8 +815,8 @@ Contributions are welcome! To contribute:
 
 Please ensure:
 - Code follows pretalx plugin best practices
-- No modifications to pretalx core files
-- Changes use Django signals for integration
+- Prefer Django signals / plugin APIs over new Dockerfile patches
+- If a `patch_*.py` is required, document why and keep it resilient to upstream paths
 - Documentation is updated
 
 ## Support
@@ -812,23 +840,32 @@ This project builds upon:
 
 ## Project Status
 
-Currently deployed and tested with:
-- Keycloak 24+
-- PostgreSQL 14
-- Python 3.12+
-- Pretalx v2025.2.0.dev0
+Current stack (as shipped in this repo):
+
+| Component | Version / note |
+|-----------|----------------|
+| Python | **3.13+** (upstream pretalx requirement; CI tests 3.13 only) |
+| Node | **22** (Vite 8 frontend build) |
+| PostgreSQL | **16** (pretalx requires ≥15) |
+| Redis | required for cache/sessions (`redis://redis:6379/1`) |
+| Local URL | **http://localhost:8080** (Compose `8080:8000`) |
+| Pretalx | cloned from upstream `main` at image build time |
+| MailHog | included; set `debug = false` to deliver via SMTP |
 
 Tested OIDC providers:
 - ✅ Keycloak
 - ✅ SURFconext
 
+Recent hardening:
+- ✅ Reflected XSS on OIDC login `next` parameter mitigated (`quote` + `format_html`)
+
 ## Roadmap
 
 Potential future enhancements:
 
-- [ ] Automated tests for plugin
+- [ ] Automated tests for the OIDC plugin
 - [ ] Support for OIDC group-based role mapping
-- [ ] Alternative to CSS-based form hiding (middleware or template tags)
+- [ ] Reduce reliance on Dockerfile template patches
 - [ ] Documentation for additional OIDC providers
 - [ ] Health check endpoints
 

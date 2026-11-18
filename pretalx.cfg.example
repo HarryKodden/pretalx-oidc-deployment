@@ -2,10 +2,11 @@
 # Copy this file to pretalx.cfg and edit with your settings
 
 [site]
-# Your public URL (must match your actual domain)
-url = http://localhost:8355
-media_url = http://localhost:8355/media/
-static_url = http://localhost:8355/static/
+# Must match the public URL you open in the browser.
+# Local Compose publishes host port 8080 → container 8000.
+url = http://localhost:8080
+media_url = http://localhost:8080/media/
+static_url = http://localhost:8080/static/
 
 # For production HTTPS deployments, uncomment these:
 # url = https://pretalx.yourdomain.com
@@ -14,21 +15,26 @@ static_url = http://localhost:8355/static/
 # trust_x_forwarded_proto = true
 # trust_x_forwarded_for = true
 
-# Enable debug mode (disable in production!)
-debug = true
+# debug=true forces console email backend (MailHog will not receive mail).
+# Use false for SMTP/MailHog delivery during local testing.
+debug = false
 
 [database]
 # SQLite for development
 backend = sqlite3
 name = db.sqlite3
 
-# For production, consider PostgreSQL:
+# For production / CI-style Postgres (Compose service name: postgres):
 # backend = postgresql
 # name = pretalx
-# user = pretalx
-# password = your-db-password
-# host = db
+# user = pretalxuser
+# password = pretalxpassword
+# host = postgres
 # port = 5432
+
+[redis]
+location = redis://redis:6379/1
+session = True
 
 [authentication]
 # OIDC authentication backend
