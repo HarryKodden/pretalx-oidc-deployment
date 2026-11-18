@@ -1,13 +1,13 @@
-FROM python:3.12-bookworm
+FROM python:3.13-bookworm
 
-
+# Vite 8 (pretalx frontend) needs Node ^20.19 || >=22.12; Debian bookworm ships Node 18.
 RUN apt-get update && \
-    apt-get install -y git gettext libmariadb-dev libpq-dev locales libmemcached-dev build-essential \
-            git \
+    apt-get install -y ca-certificates curl gnupg \
+            git gettext libmariadb-dev libpq-dev locales libmemcached-dev build-essential \
             sudo \
-            locales \
-            npm \
             --no-install-recommends && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs --no-install-recommends && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     dpkg-reconfigure locales && \

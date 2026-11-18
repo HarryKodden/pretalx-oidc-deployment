@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+from urllib.parse import quote
 
 from django.conf import settings
 from django.dispatch import receiver
 from django.urls import reverse
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from pretalx.cfp.signals import html_above_profile_page
@@ -113,8 +115,10 @@ def add_oidc_login_button(sender, request, next_url=None, **kwargs):
     try:
         login_url = reverse("plugins:pretalx_oidc:oidc_authentication_init")
 
+        # URL-encode next so attribute breakouts like "><script> cannot appear raw
+        # in the query string. format_html below then HTML-escapes the full href.
         if next_url:
-            login_url = f"{login_url}?next={next_url}"
+            login_url = f"{login_url}?next={quote(str(next_url), safe='/')}"
 
         # Get provider name from settings, fallback to "OIDC" if not set
         provider_name = getattr(settings, "OIDC_PROVIDER_NAME", "OIDC")
@@ -137,20 +141,26 @@ def add_oidc_login_button(sender, request, next_url=None, **kwargs):
             html_parts.append(f"<!-- OIDC CSS v{timestamp} -->")
             html_parts.append(PASSWORD_HIDE_CSS)
 
-        # Add OIDC button with unique ID
-        html_parts.append(f"""
+        # format_html escapes login_url / button_text — never mark_safe user-derived hrefs
+        html_parts.append(
+            format_html(
+                """
     <div class="auth-form-block w-100" id="oidc-login-only">
-        <a class="btn btn-lg btn-primary btn-block" href="{login_url}">
-            <i class="fa fa-sign-in"></i> {button_text}
+        <a class="btn btn-lg btn-primary btn-block" href="{}">
+            <i class="fa fa-sign-in"></i> {}
         </a>
     </div>
-    """)
+    """,
+                login_url,
+                button_text,
+            )
+        )
 
-        result = "\n".join(html_parts)
+        result = mark_safe("\n".join(html_parts))
         logger.info(
             f"[OIDC] Returning HTML (length: {len(result)}, has <style>: {'<style>' in result})"
         )
-        return mark_safe(result)
+        return result
     except Exception as e:
         logger.error(f"[OIDC] Error in signal handler: {e}", exc_info=True)
         return ""
